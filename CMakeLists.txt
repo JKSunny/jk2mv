@@ -49,6 +49,8 @@ option(BuildMVMP "Whether to create targets for the client (jk2mvmp & jk2mvmenu)
 option(BuildMVDED "Whether to create targets for the dedicated server (jk2mvded)" ON)
 option(BuildMVSDK "Whether to build and integrate the mvsdk modules" ON)
 
+option(BuildMPRdVulkan "Whether to create projects for the MP vulkan renderer (rd-vulkan_x86.dll)" ON)
+
 set(SystemProcessor "${CMAKE_SYSTEM_PROCESSOR}" CACHE STRING "Option to override CMAKE_SYSTEM_PROCESSOR")
 
 if(NOT EXISTS "${CMAKE_SOURCE_DIR}/src/mvsdk/code/ui/CMakeLists.txt")
@@ -173,6 +175,7 @@ endif()
 set(MVMP "jk2mvmp")
 set(MVMENU "jk2mvmenu_${Architecture}")
 set(MVDED "jk2mvded")
+set(MPVulkanRenderer "rd-vulkan_${Architecture}")
 
 # Directories
 if(MultiConfigGenerator)

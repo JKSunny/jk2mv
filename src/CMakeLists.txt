@@ -7,6 +7,11 @@ if(BuildMVSDK)
 	add_subdirectory("mvsdk")
 endif()
 
+#	 Add Vulkan JKA Renderer Project
+if(BuildMPRdVulkan)
+	add_subdirectory("${MPDir}/rd-vulkan")
+endif(BuildMPRdVulkan)
+
 if (BuildMVMP OR BuildMVDED)
 	# Libraries
 	
