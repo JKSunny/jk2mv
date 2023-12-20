@@ -78,6 +78,7 @@ typedef intptr_t (QDECL *VM_EntryPoint_t)( int, intptr_t, intptr_t, intptr_t, in
 
 void	*Sys_LoadModuleLibrary(const char *name, qboolean mvOverride, VM_EntryPoint_t *entryPoint, intptr_t(QDECL *systemcalls)(intptr_t, ...));
 void	Sys_UnloadModuleLibrary(void *dllHandle);
+void	Sys_UnloadDll( void *dllHandle );
 
 char	*Sys_GetCurrentUser( void );
 
@@ -151,6 +152,7 @@ typedef enum graphicsApi_e
 
 	// Only OpenGL needs special treatment..
 	GRAPHICS_API_OPENGL,
+	GRAPHICS_API_VULKAN,
 } graphicsApi_t;
 
 // Graphics API
@@ -205,3 +207,9 @@ void *		WIN_GL_GetProcAddress( const char *proc );
 void		GLimp_Minimize(void);
 
 uint8_t ConvertUTF32ToExpectedCharset( uint32_t utf32 );
+
+// Vulkan
+void		*WIN_VK_GetInstanceProcAddress( void );
+qboolean	WIN_VK_createSurfaceImpl( void *instance, void **surface );
+void		WIN_VK_destroyWindow( void );
+qboolean	WIN_VK_IsMinimized( void );

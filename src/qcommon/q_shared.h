@@ -165,6 +165,7 @@
 #define OS_STRING "win"
 #define LIBRARY_EXTENSION "dll"
 #define	PATH_SEP '\\'
+#define QINLINE __inline
 
 #endif
 
@@ -175,6 +176,7 @@
 #define OS_STRING "macosx"
 #define LIBRARY_EXTENSION "dylib"
 #define	PATH_SEP	'/'
+#define QINLINE inline
 
 #endif
 
@@ -186,6 +188,7 @@
 #define QDECL
 #define LIBRARY_EXTENSION "so"
 #define	PATH_SEP '/'
+#define QINLINE inline
 
 #endif
 
@@ -197,6 +200,7 @@
 #define QDECL
 #define LIBRARY_EXTENSION "so"
 #define	PATH_SEP '/'
+#define QINLINE inline
 
 #endif
 
@@ -687,21 +691,21 @@ CT_HUD_ORANGE,
 CT_MAX
 } ct_table_t;
 
-extern const vec4_t colorTable[CT_MAX];
+extern vec4_t colorTable[CT_MAX];
 
-extern const vec4_t		colorBlack;
-extern const vec4_t		colorRed;
-extern const vec4_t		colorGreen;
-extern const vec4_t		colorBlue;
-extern const vec4_t		colorYellow;
-extern const vec4_t		colorMagenta;
-extern const vec4_t		colorCyan;
-extern const vec4_t		colorWhite;
-extern const vec4_t		colorLtGrey;
-extern const vec4_t		colorMdGrey;
-extern const vec4_t		colorDkGrey;
-extern const vec4_t		colorLtBlue;
-extern const vec4_t		colorDkBlue;
+extern vec4_t		colorBlack;
+extern vec4_t		colorRed;
+extern vec4_t		colorGreen;
+extern vec4_t		colorBlue;
+extern vec4_t		colorYellow;
+extern vec4_t		colorMagenta;
+extern vec4_t		colorCyan;
+extern vec4_t		colorWhite;
+extern vec4_t		colorLtGrey;
+extern vec4_t		colorMdGrey;
+extern vec4_t		colorDkGrey;
+extern vec4_t		colorLtBlue;
+extern vec4_t		colorDkBlue;
 
 #define Q_COLOR_ESCAPE	'^'
 #define Q_COLOR_BITS 0x7
@@ -761,7 +765,7 @@ extern const vec4_t		colorDkBlue;
 #define S_COLOR_JK2MV   "^n" // Different in Debug/Release
 #define S_COLOR_LT_TRANSPARENT "^o"
 
-extern const vec4_t	g_color_table[COLOR_EXT_AMOUNT];
+extern vec4_t	g_color_table[COLOR_EXT_AMOUNT];
 
 #define	MAKERGB( v, r, g, b ) v[0]=r;v[1]=g;v[2]=b
 #define	MAKERGBA( v, r, g, b, a ) v[0]=r;v[1]=g;v[2]=b;v[3]=a
@@ -969,6 +973,7 @@ void PerpendicularVector( vec3_t dst, const vec3_t src );
 
 char	*COM_SkipPath( char *pathname );
 void	COM_StripExtension(const char *in, char *out, int destsize);
+qboolean COM_CompareExtension(const char *in, const char *ext);
 void	COM_DefaultExtension( char *path, size_t maxSize, const char *extension );
 void	COM_SanitizeExtension(char *path, size_t maxSize, const char *extension);
 
@@ -2302,5 +2307,50 @@ typedef union byteAlias_u {
 #define STRING( a ) #a
 #define XSTRING( a ) STRING( a )
 #define ARRAY_LEN( x ) ( sizeof( x ) / sizeof( *(x) ) )
+
+//
+// vulkan added begin
+// possbile to keep it in the renderer?
+//
+typedef union fileBuffer_u {
+	void *v;
+	char *c;
+	byte *b;
+} fileBuffer_t;
+
+#define PAD(base, alignment)	(((base)+(alignment)-1) & ~((alignment)-1))
+#define PADLEN(base, alignment)	(PAD((base), (alignment)) - (base))
+
+#define PADP(base, alignment)	((void *) PAD((intptr_t) (base), (alignment)))
+
+#ifdef __GNUC__
+#define QALIGN(x) __attribute__((aligned(x)))
+#else
+#define QALIGN(x)
+#endif
+
+#define Q_min(x,y) ((x)<(y)?(x):(y))
+#define Q_max(x,y) ((x)>(y)?(x):(y))
+
+qboolean Q_isanumber( const char *s );
+qboolean Q_isintegral( float f );
+
+float Q_flrand( float min, float max );
+
+void VectorScale4( const vec4_t vecIn, float scale, vec4_t vecOut );
+void VectorCopy4( const vec4_t vecIn, vec4_t vecOut );
+void VectorSet4( vec4_t vec, float x, float y, float z, float w );
+void VectorClear4( vec4_t vec );
+
+const char	*COM_GetExtension( const char *name );
+
+#define	CVAR_NONE			0x00000000
+#define CVAR_NODEFAULT		0x00010000	// do not write to config if matching with default value
+#define CVAR_ARCHIVE_ND		(CVAR_ARCHIVE | CVAR_NODEFAULT)
+
+#define MAX_SUB_BSP			32 //rwwRMG - added
+//
+// vulkan added end
+//
 
 #endif	// __Q_SHARED_H

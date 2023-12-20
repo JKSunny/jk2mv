@@ -9,22 +9,22 @@ const vec3_t	vec3_origin = {0,0,0};
 const vec3_t	axisDefault[3] = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };
 
 
-const vec4_t		colorBlack	= {0, 0, 0, 1};
-const vec4_t		colorRed	= {1, 0, 0, 1};
-const vec4_t		colorGreen	= {0, 1, 0, 1};
-const vec4_t		colorBlue	= {0, 0, 1, 1};
-const vec4_t		colorYellow	= {1, 1, 0, 1};
-const vec4_t		colorMagenta= {1, 0, 1, 1};
-const vec4_t		colorCyan	= {0, 1, 1, 1};
-const vec4_t		colorWhite	= {1, 1, 1, 1};
-const vec4_t		colorLtGrey	= {0.75, 0.75, 0.75, 1};
-const vec4_t		colorMdGrey	= {0.5, 0.5, 0.5, 1};
-const vec4_t		colorDkGrey	= {0.25, 0.25, 0.25, 1};
+vec4_t		colorBlack	= {0, 0, 0, 1};
+vec4_t		colorRed	= {1, 0, 0, 1};
+vec4_t		colorGreen	= {0, 1, 0, 1};
+vec4_t		colorBlue	= {0, 0, 1, 1};
+vec4_t		colorYellow	= {1, 1, 0, 1};
+vec4_t		colorMagenta= {1, 0, 1, 1};
+vec4_t		colorCyan	= {0, 1, 1, 1};
+vec4_t		colorWhite	= {1, 1, 1, 1};
+vec4_t		colorLtGrey	= {0.75, 0.75, 0.75, 1};
+vec4_t		colorMdGrey	= {0.5, 0.5, 0.5, 1};
+vec4_t		colorDkGrey	= {0.25, 0.25, 0.25, 1};
 
-const vec4_t		colorLtBlue	= {0.367f, 0.261f, 0.722f, 1};
-const vec4_t		colorDkBlue	= {0.199f, 0.0f,   0.398f, 1};
+vec4_t		colorLtBlue	= {0.367f, 0.261f, 0.722f, 1};
+vec4_t		colorDkBlue	= {0.199f, 0.0f,   0.398f, 1};
 
-const vec4_t	g_color_table[COLOR_EXT_AMOUNT] =
+vec4_t	g_color_table[COLOR_EXT_AMOUNT] =
 {
 	// Default colorTable
 	{0.0, 0.0, 0.0, 1.0},           // ^0 -> black
@@ -1015,4 +1015,40 @@ qboolean Q_isnan(float f) {
 #else
 	return (qboolean)(isnan(f) != 0);
 #endif
+}
+
+float Q_flrand( float min, float max )
+{
+	return flrand(min, max);
+}
+
+///////////////////////////////////////////////////////////////////////////
+//
+//      VEC4
+//
+///////////////////////////////////////////////////////////////////////////
+void VectorScale4( const vec4_t vecIn, float scale, vec4_t vecOut )
+{
+	vecOut[0] = vecIn[0]*scale;
+	vecOut[1] = vecIn[1]*scale;
+	vecOut[2] = vecIn[2]*scale;
+	vecOut[3] = vecIn[3]*scale;
+}
+
+void VectorCopy4( const vec4_t vecIn, vec4_t vecOut )
+{
+	vecOut[0] = vecIn[0];
+	vecOut[1] = vecIn[1];
+	vecOut[2] = vecIn[2];
+	vecOut[3] = vecIn[3];
+}
+
+void VectorSet4( vec4_t vec, float x, float y, float z, float w )
+{
+	vec[0]=x; vec[1]=y; vec[2]=z; vec[3]=w;
+}
+
+void VectorClear4( vec4_t vec )
+{
+	vec[0] = vec[1] = vec[2] = vec[3] = 0;
 }

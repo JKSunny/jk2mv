@@ -1,3 +1,7 @@
+#pragma once
+
+#include "../qcommon/q_shared.h"
+
 #ifndef __QFILES_H__
 #define __QFILES_H__
 

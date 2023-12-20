@@ -8,8 +8,6 @@
 #endif
 #endif //!DEDICATED
 
-#include "tr_font.h"
-
 #ifdef G2_COLLISION_ENABLED
 #if !defined (MINIHEAP_H_INC)
 	#include "../qcommon/MiniHeap.h"
@@ -23,10 +21,6 @@
 //// Defined in snd_a3dg_refcommon.c
 //void RE_A3D_RenderGeometry (void *pVoidA3D, void *pVoidGeom, void *pVoidMat, void *pVoidGeomStatus);
 //#endif
-
-#ifdef G2_COLLISION_ENABLED
-CMiniHeap *G2VertSpaceServer = NULL;
-#endif
 
 #ifndef DEDICATED
 glconfig_t	glConfig;
@@ -1304,19 +1298,12 @@ void R_Init( void ) {
 	InitOpenGL();
 
 	R_InitImages();
-	R_InitShaders();
+	R_InitShaders( qfalse );
 	R_InitSkins();
 	R_InitFonts();
 #endif
 	R_ModelInit();
 #ifndef DEDICATED
-
-#ifdef G2_COLLISION_ENABLED
-	if (!G2VertSpaceServer)
-	{
-		G2VertSpaceServer = new CMiniHeap(G2_VERT_SPACE_SERVER_SIZE * 1024);
-	}
-#endif
 
 	GL_CheckErrors();
 #endif
@@ -1411,14 +1398,6 @@ void RE_Shutdown( qboolean destroyWindow ) {
 #endif //!DEDICATED
 
 	tr.registered = qfalse;
-
-#ifdef G2_COLLISION_ENABLED
-	if (G2VertSpaceServer)
-	{
-		delete G2VertSpaceServer;
-		G2VertSpaceServer = 0;
-	}
-#endif
 }
 
 #ifndef DEDICATED
@@ -1473,6 +1452,16 @@ void RE_UpdateGLConfig( glconfig_t *glconfigOut ) {
 }
 
 #endif //!DEDICATED
+
+extern qboolean gG2_GBMNoReconstruct;
+extern qboolean gG2_GBMUseSPMethod;
+static void G2API_BoltMatrixReconstruction( qboolean reconstruct ) { gG2_GBMNoReconstruct = (qboolean)!reconstruct; }
+static void G2API_BoltMatrixSPMethod( qboolean spMethod ) { gG2_GBMUseSPMethod = spMethod; }
+
+extern bool RicksCrazyOnServer;
+static void G2API_RicksCrazyOnServer( bool value ) { RicksCrazyOnServer = value; } // lol ~sunny
+
+extern void R_SVModelInit( void ); //tr_model.cpp
 /*
 @@@@@@@@@@@@@@@@@@@@@
 GetRefAPI
@@ -1495,6 +1484,113 @@ refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 	// the RE_ functions are Renderer Entry points
 
 	re.Shutdown = RE_Shutdown;
+
+	re.RegisterMedia_LevelLoadBegin			= RE_RegisterMedia_LevelLoadBegin;
+	re.RegisterMedia_LevelLoadEnd			= RE_RegisterMedia_LevelLoadEnd;
+	re.RegisterMedia_GetLevel				= RE_RegisterMedia_GetLevel;
+	//re.RegisterImages_LevelLoadEnd			= RE_RegisterImages_LevelLoadEnd;
+	re.RegisterModels_LevelLoadEnd			= RE_RegisterModels_LevelLoadEnd;
+
+	//re.RegisterServerSkin					= RE_RegisterServerSkin;
+
+	// G2 stuff
+	re.InitSkins							= R_InitSkins;
+	re.InitShaders							= R_InitShaders;
+	re.SVModelInit							= R_SVModelInit;
+	//re.HunkClearCrap						= RE_HunkClearCrap;
+
+	// G2API
+	re.G2API_RicksCrazyOnServer				= G2API_RicksCrazyOnServer;
+	re.G2API_FixGhoul2InfoLeaks				= G2API_FixGhoul2InfoLeaks;
+
+	re.G2API_AddBolt						= G2API_AddBolt;
+	re.G2API_AddBoltSurfNum					= G2API_AddBoltSurfNum;
+	re.G2API_AddSurface						= G2API_AddSurface;
+	//re.G2API_AnimateG2ModelsRag			= G2API_AnimateG2ModelsRag;
+	re.G2API_AttachEnt						= G2API_AttachEnt;
+	re.G2API_AttachG2Model					= G2API_AttachG2Model;
+	//re.G2API_AttachInstanceToEntNum		= G2API_AttachInstanceToEntNum;
+	//re.G2API_AbsurdSmoothing				= G2API_AbsurdSmoothing;
+	re.G2API_BoltMatrixReconstruction		= G2API_BoltMatrixReconstruction;
+	re.G2API_BoltMatrixSPMethod				= G2API_BoltMatrixSPMethod;
+	//re.G2API_CleanEntAttachments			= G2API_CleanEntAttachments;
+	re.G2API_CleanGhoul2Models				= G2API_CleanGhoul2Models;
+	//re.G2API_ClearAttachedInstance		= G2API_ClearAttachedInstance;
+	re.G2API_CollisionDetect				= G2API_CollisionDetect;
+	//re.G2API_CollisionDetectCache			= G2API_CollisionDetectCache;
+	re.G2API_CopyGhoul2Instance				= G2API_CopyGhoul2Instance;
+	re.G2API_CopySpecificG2Model			= G2API_CopySpecificG2Model;
+	re.G2API_DetachG2Model					= G2API_DetachG2Model;
+	//re.G2API_DoesBoneExist				= G2API_DoesBoneExist;
+	re.G2API_DuplicateGhoul2Instance		= G2API_DuplicateGhoul2Instance;
+	//re.G2API_FreeSaveBuffer					= G2API_FreeSaveBuffer;
+	re.G2API_GetMaxModelIndex				= G2API_GetMaxModelIndex;
+	re.G2API_GetAnimFileName				= G2API_GetAnimFileName;
+	re.G2API_GetAnimFileNameIndex			= G2API_GetAnimFileNameIndex;
+	re.G2API_GetAnimRange					= G2API_GetAnimRange;
+	re.G2API_GetBoltMatrix					= G2API_GetBoltMatrix;
+	re.G2API_GetBoneAnim					= G2API_GetBoneAnim;
+	//re.G2API_GetBoneIndex					= G2API_GetBoneIndex;
+	re.G2API_GetGhoul2ModelFlags			= G2API_GetGhoul2ModelFlags;
+	re.G2API_GetGLAName						= G2API_GetGLAName;
+	//re.G2API_GetModelName					= G2API_GetModelName;
+	re.G2API_GetParentSurface				= G2API_GetParentSurface;
+	//re.G2API_GetRagBonePos				= G2API_GetRagBonePos;
+	re.G2API_GetSurfaceIndex				= G2API_GetSurfaceIndex;
+	re.G2API_GetSurfaceName					= G2API_GetSurfaceName;
+	re.G2API_GetSurfaceOnOff				= G2API_GetSurfaceOnOff;
+	re.G2API_GetSurfaceRenderStatus			= G2API_GetSurfaceRenderStatus;
+	//re.G2API_GetTime						= G2API_GetTime;
+	//re.G2API_Ghoul2Size					= G2API_Ghoul2Size;
+	re.G2API_GiveMeVectorFromMatrix			= G2API_GiveMeVectorFromMatrix;
+	re.G2API_HasGhoul2ModelOnIndex			= G2API_HasGhoul2ModelOnIndex;
+	re.G2API_HaveWeGhoul2Models				= G2API_HaveWeGhoul2Models;
+	//re.G2API_IKMove						= G2API_IKMove;
+	re.G2API_InitGhoul2Model				= G2API_InitGhoul2Model;
+	//re.G2API_IsGhoul2InfovValid			= G2API_IsGhoul2InfovValid;
+	re.G2API_IsPaused						= G2API_IsPaused;
+	re.G2API_ListBones						= G2API_ListBones;
+	re.G2API_ListSurfaces					= G2API_ListSurfaces;
+	//re.G2API_LoadGhoul2Models				= G2API_LoadGhoul2Models;
+	//re.G2API_LoadSaveCodeDestructGhoul2Info	= G2API_LoadSaveCodeDestructGhoul2Info;
+	//re.G2API_OverrideServerWithClientData	= G2API_OverrideServerWithClientData;
+	re.G2API_PauseBoneAnim					= G2API_PauseBoneAnim;
+	re.G2API_PrecacheGhoul2Model			= G2API_PrecacheGhoul2Model;
+	//re.G2API_RagEffectorGoal				= G2API_RagEffectorGoal;
+	//re.G2API_RagEffectorKick				= G2API_RagEffectorKick;
+	//re.G2API_RagForceSolve				= G2API_RagForceSolve;
+	//re.G2API_RagPCJConstraint				= G2API_RagPCJConstraint;
+	//re.G2API_RagPCJGradientSpeed			= G2API_RagPCJGradientSpeed;
+	re.G2API_RemoveBolt						= G2API_RemoveBolt;
+	re.G2API_RemoveBone						= G2API_RemoveBone;
+	re.G2API_RemoveGhoul2Model				= G2API_RemoveGhoul2Model;
+	//re.G2API_RemoveGhoul2Models			= G2API_RemoveGhoul2Models;
+	re.G2API_RemoveSurface					= G2API_RemoveSurface;
+	//re.G2API_ResetRagDoll					= G2API_ResetRagDoll;
+	//re.G2API_SaveGhoul2Models				= G2API_SaveGhoul2Models;
+	re.G2API_SetBoltInfo					= G2API_SetBoltInfo;
+	re.G2API_SetBoneAngles					= G2API_SetBoneAngles;
+	//re.G2API_SetBoneAnglesIndex				= G2API_SetBoneAnglesIndex;
+	re.G2API_SetBoneAnglesMatrix			= G2API_SetBoneAnglesMatrix;
+	re.G2API_SetBoneAnglesMatrixIndex		= G2API_SetBoneAnglesMatrixIndex;
+	re.G2API_SetBoneAnim					= G2API_SetBoneAnim;
+	re.G2API_SetBoneAnimIndex				= G2API_SetBoneAnimIndex;
+	//re.G2API_SetBoneIKState				= G2API_SetBoneIKState;
+	re.G2API_SetGhoul2ModelIndexes			= G2API_SetGhoul2ModelIndexes;
+	re.G2API_SetGhoul2ModelFlags			= G2API_SetGhoul2ModelFlags;
+	re.G2API_SetLodBias						= G2API_SetLodBias;
+	re.G2API_SetNewOrigin					= G2API_SetNewOrigin;
+	//re.G2API_SetRagDoll					= G2API_SetRagDoll;
+	re.G2API_SetRootSurface					= G2API_SetRootSurface;
+	re.G2API_SetShader						= G2API_SetShader;
+	re.G2API_SetSkin						= G2API_SetSkin;
+	re.G2API_SetSurfaceOnOff				= G2API_SetSurfaceOnOff;
+	//re.G2API_SetTime						= G2API_SetTime;
+	//re.G2API_SkinlessModel				= G2API_SkinlessModel;
+	re.G2API_StopBoneAngles					= G2API_StopBoneAngles;
+	re.G2API_StopBoneAnglesIndex			= G2API_StopBoneAnglesIndex;
+	re.G2API_StopBoneAnim					= G2API_StopBoneAnim;
+	re.G2API_StopBoneAnimIndex				= G2API_StopBoneAnimIndex;
 #ifndef DEDICATED
 	re.BeginRegistration = RE_BeginRegistration;
 	re.RegisterModel = RE_RegisterModel;

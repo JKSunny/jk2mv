@@ -992,6 +992,10 @@ void FS_FCloseFile( fileHandle_t f, module_t module ) {
 	Com_Memset( &fsh[f], 0, sizeof( fsh[f] ) );
 }
 
+void FS_FCloseFile_RI( fileHandle_t f ) {
+	FS_FCloseFile( f, MODULE_RENDERER );
+}
+
 /*
 ===========
 FS_FOpenFileWrite
@@ -1032,6 +1036,10 @@ fileHandle_t FS_FOpenFileWrite( const char *filename, module_t module ) {
 		f = 0;
 	}
 	return f;
+}
+
+fileHandle_t FS_FOpenFileWrite_RI( const char *filename ) {
+	return FS_FOpenFileWrite( filename, MODULE_RENDERER );
 }
 
 fileHandle_t FS_FOpenBaseFileWrite(const char *filename, module_t module) {
@@ -1240,8 +1248,13 @@ separate file or a ZIP file.
 */
 extern qboolean		com_fullyInitialized;
 
+
 int FS_FOpenFileRead(const char *filename, fileHandle_t *file, qboolean uniqueFILE, module_t module, qboolean skipJKA) {
 	return FS_FOpenFileReadHash(filename, file, uniqueFILE, NULL, module, skipJKA);
+}
+
+int FS_FOpenFileRead_RI(const char *filename, fileHandle_t *file, qboolean uniqueFILE ) {	// maybe do this for other removed module argument methods too?
+	return FS_FOpenFileReadHash(filename, file, uniqueFILE, NULL, MODULE_RENDERER, qfalse);
 }
 
 int FS_FOpenFileReadHash(const char *filename, fileHandle_t *file, qboolean uniqueFILE, unsigned long *filehash, module_t module, qboolean skipJKA) {

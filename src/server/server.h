@@ -10,6 +10,7 @@
 #include "../game/g_public.h"
 #include "../game/bg_public.h"
 #include "../qcommon/cm_public.h"
+#include "../rd-common/tr_public.h"
 
 #include "../api/mvapi.h"
 
@@ -225,6 +226,9 @@ typedef struct {
 extern	serverStatic_t	svs;				// persistant server info across maps
 extern	server_t		sv;					// cleared each map
 extern	vm_t			*gvm;				// game virtual machine
+
+//FIXME: dedi server probably can't have this..
+extern	refexport_t		*re;				// interface to refresh .dll
 
 extern	cvar_t	*sv_fps;
 extern	cvar_t	*sv_timeout;

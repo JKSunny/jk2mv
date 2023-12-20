@@ -1,8 +1,9 @@
 #include <SDL.h>
 #include <SDL_syswm.h>
+#include <SDL_vulkan.h> // Vulkan
 #include "../qcommon/qcommon.h"
 #include "../sys/sys_local.h"
-#include "../renderer/tr_public.h"
+#include "../rd-common/tr_public.h"
 #include "sdl_icon.h"
 
 #define CLIENT_WINDOW_TITLE "JK2MV"
@@ -316,9 +317,11 @@ GLimp_Minimize
 Minimize the game so that user is back at the desktop
 ===============
 */
+void WIN_VK_MinimizeFix(void); // Vulkan
 void GLimp_Minimize(void)
 {
 	SDL_MinimizeWindow( screen );
+	WIN_VK_MinimizeFix(); // Vulkan, fix for swapchain recreation.
 }
 
 void WIN_Present( window_t *window )
@@ -573,9 +576,16 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 	int winWidth = 0; // window dimensions in screen coordinates (divided by desktop scaling)
 	int winHeight = 0;
 
-	if ( windowDesc->api == GRAPHICS_API_OPENGL )
+	switch (windowDesc->api)
 	{
-		flags |= SDL_WINDOW_OPENGL;
+		case GRAPHICS_API_OPENGL:
+			flags |= SDL_WINDOW_OPENGL;
+			break;
+		case GRAPHICS_API_VULKAN:
+			flags |= SDL_WINDOW_VULKAN;
+			break;
+		default:
+			break;
 	}
 
 	if ( r_highdpi->integer )
@@ -690,7 +700,7 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 	stencilBits = r_stencilbits->integer;
 	samples = r_ext_multisample->integer;
 
-	if ( windowDesc->api == GRAPHICS_API_OPENGL )
+	if ( windowDesc->api == GRAPHICS_API_OPENGL || windowDesc->api == GRAPHICS_API_VULKAN )
 	{
 		for (i = 0; i < 16; i++)
 		{
@@ -755,63 +765,65 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 			else
 				perChannelColorBits = 4;
 
-			SDL_GL_SetAttribute( SDL_GL_RED_SIZE, perChannelColorBits );
-			SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, perChannelColorBits );
-			SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, perChannelColorBits );
-			SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, testDepthBits );
-			SDL_GL_SetAttribute( SDL_GL_STENCIL_SIZE, testStencilBits );
+			if (windowDesc->api == GRAPHICS_API_OPENGL) {
+				SDL_GL_SetAttribute( SDL_GL_RED_SIZE, perChannelColorBits );
+				SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, perChannelColorBits );
+				SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, perChannelColorBits );
+				SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, testDepthBits );
+				SDL_GL_SetAttribute( SDL_GL_STENCIL_SIZE, testStencilBits );
 
-			SDL_GL_SetAttribute( SDL_GL_MULTISAMPLEBUFFERS, samples ? 1 : 0 );
-			SDL_GL_SetAttribute( SDL_GL_MULTISAMPLESAMPLES, samples );
+				SDL_GL_SetAttribute( SDL_GL_MULTISAMPLEBUFFERS, samples ? 1 : 0 );
+				SDL_GL_SetAttribute( SDL_GL_MULTISAMPLESAMPLES, samples );
 
-			if ( windowDesc->gl.majorVersion )
-			{
-				int compactVersion = windowDesc->gl.majorVersion * 100 + windowDesc->gl.minorVersion * 10;
-
-				SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, windowDesc->gl.majorVersion );
-				SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, windowDesc->gl.minorVersion );
-
-				if ( windowDesc->gl.profile == GLPROFILE_ES || compactVersion >= 320 )
+				if ( windowDesc->gl.majorVersion )
 				{
-					int profile;
-					switch ( windowDesc->gl.profile )
+					int compactVersion = windowDesc->gl.majorVersion * 100 + windowDesc->gl.minorVersion * 10;
+
+					SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, windowDesc->gl.majorVersion );
+					SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, windowDesc->gl.minorVersion );
+
+					if ( windowDesc->gl.profile == GLPROFILE_ES || compactVersion >= 320 )
 					{
-					default:
-					case GLPROFILE_COMPATIBILITY:
-						profile = SDL_GL_CONTEXT_PROFILE_COMPATIBILITY;
-						break;
+						int profile;
+						switch ( windowDesc->gl.profile )
+						{
+						default:
+						case GLPROFILE_COMPATIBILITY:
+							profile = SDL_GL_CONTEXT_PROFILE_COMPATIBILITY;
+							break;
 
-					case GLPROFILE_CORE:
-						profile = SDL_GL_CONTEXT_PROFILE_CORE;
-						break;
+						case GLPROFILE_CORE:
+							profile = SDL_GL_CONTEXT_PROFILE_CORE;
+							break;
 
-					case GLPROFILE_ES:
-						profile = SDL_GL_CONTEXT_PROFILE_ES;
-						break;
+						case GLPROFILE_ES:
+							profile = SDL_GL_CONTEXT_PROFILE_ES;
+							break;
+						}
+
+						SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, profile );
 					}
-
-					SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, profile );
 				}
-			}
 
-			if ( windowDesc->gl.contextFlags & GLCONTEXT_DEBUG )
-			{
-				SDL_GL_SetAttribute( SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG );
-			}
+				if ( windowDesc->gl.contextFlags & GLCONTEXT_DEBUG )
+				{
+					SDL_GL_SetAttribute( SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG );
+				}
 
-			if(r_stereo->integer)
-			{
-				glConfig->stereoEnabled = qtrue;
-				SDL_GL_SetAttribute(SDL_GL_STEREO, 1);
-			}
-			else
-			{
-				glConfig->stereoEnabled = qfalse;
-				SDL_GL_SetAttribute(SDL_GL_STEREO, 0);
-			}
+				if(r_stereo->integer)
+				{
+					glConfig->stereoEnabled = qtrue;
+					SDL_GL_SetAttribute(SDL_GL_STEREO, 1);
+				}
+				else
+				{
+					glConfig->stereoEnabled = qfalse;
+					SDL_GL_SetAttribute(SDL_GL_STEREO, 0);
+				}
 
-			SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
-			SDL_GL_SetAttribute( SDL_GL_ACCELERATED_VISUAL, !r_allowsoftwaregl->integer);
+				SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
+				SDL_GL_SetAttribute( SDL_GL_ACCELERATED_VISUAL, !r_allowsoftwaregl->integer);
+			}
 
 			if( ( screen = SDL_CreateWindow( windowTitle, x, y,
 					winWidth, winHeight, flags ) ) == NULL )
@@ -857,15 +869,17 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 				}
 			}
 
-			if( ( opengl_context = SDL_GL_CreateContext( screen ) ) == NULL )
-			{
-				Com_Printf( "SDL_GL_CreateContext failed: %s\n", SDL_GetError( ) );
-				continue;
-			}
+			if (windowDesc->api == GRAPHICS_API_OPENGL) {
+				if( ( opengl_context = SDL_GL_CreateContext( screen ) ) == NULL )
+				{
+					Com_Printf( "SDL_GL_CreateContext failed: %s\n", SDL_GetError( ) );
+					continue;
+				}
 
-			if ( SDL_GL_SetSwapInterval( r_swapInterval->integer ) == -1 )
-			{
-				Com_DPrintf( "SDL_GL_SetSwapInterval failed: %s\n", SDL_GetError() );
+				if ( SDL_GL_SetSwapInterval( r_swapInterval->integer ) == -1 )
+				{
+					Com_DPrintf( "SDL_GL_SetSwapInterval failed: %s\n", SDL_GetError() );
+				}
 			}
 
 			glConfig->colorBits = testColorBits;
@@ -877,9 +891,11 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 			break;
 		}
 
-		if (opengl_context == NULL) {
-			SDL_FreeSurface(icon);
-			return RSERR_UNKNOWN;
+		if ( windowDesc->api == GRAPHICS_API_OPENGL ) {
+			if (opengl_context == NULL) {
+				SDL_FreeSurface(icon);
+				return RSERR_UNKNOWN;
+			}
 		}
 	}
 	else
@@ -986,6 +1002,8 @@ static qboolean GLimp_StartDriverAndSetMode(glconfig_t *glConfig, const windowDe
 		default:
 			break;
 	}
+
+	Com_Printf("\n\nGPU Driver: %s\n", SDL_GetCurrentVideoDriver()); // Vulkan, debug
 
 	return qtrue;
 }
@@ -1171,4 +1189,57 @@ void WIN_SetTaskbarState(tbstate_t state, uint64_t current, uint64_t total) {
 #ifdef SDL_VIDEO_DRIVER_WINDOWS
 	Sys_SetTaskbarState(info.info.win.window, state, current, total);
 #endif
+}
+
+// VULKAN
+void WIN_VK_MinimizeFix(void) {
+	Cvar_SetValue("com_minimized", 1);
+}
+
+qboolean WIN_VK_IsMinimized(void) {
+	if ( com_minimized->integer )
+	{
+		//double check
+		Uint32 flags = SDL_GetWindowFlags( screen );
+
+		if( ( flags & SDL_WINDOW_MINIMIZED ) || ( flags & SDL_WINDOW_HIDDEN ) )
+			return qtrue;
+
+		Cvar_SetValue( "com_minimized", 0 );
+	}
+
+	return qfalse;
+}
+
+void *WIN_VK_GetInstanceProcAddress(void)
+{
+
+	int code = SDL_Vulkan_LoadLibrary(NULL);
+
+	if (code) {
+		Com_Error(ERR_FATAL, "Failed to load Vulkan library (code %d): %s", code, SDL_GetError());
+	}
+
+	return SDL_Vulkan_GetVkGetInstanceProcAddr();
+}
+
+qboolean WIN_VK_createSurfaceImpl(void *instance, void **surface)
+{
+	return static_cast<qboolean>( SDL_Vulkan_CreateSurface(
+		screen,
+		reinterpret_cast<VkInstance>( instance ),
+		reinterpret_cast<VkSurfaceKHR*>( surface ) ) );
+}
+
+void WIN_VK_destroyWindow(void)
+{
+#if 0
+	IN_Shutdown();
+
+	SDL_QuitSubSystem(SDL_INIT_VIDEO);
+
+	SDL_DestroyWindow(screen);
+	screen = NULL;
+#endif
+	return;
 }

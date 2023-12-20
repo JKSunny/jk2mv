@@ -4325,7 +4325,7 @@ static void CreateExternalShaders( void ) {
 R_InitShaders
 ==================
 */
-void R_InitShaders( void ) {
+void R_InitShaders( qboolean server ) {
 	ri.Printf( PRINT_ALL, "Initializing Shaders\n" );
 
 	Com_Memset(hashTable, 0, sizeof(hashTable));
@@ -4341,12 +4341,13 @@ Ghoul2 Insert Start
 /*
 Ghoul2 Insert End
 */
-	CreateInternalShaders();
+	if (!server)
+	{
+		CreateInternalShaders();
 
-	ScanAndLoadShaderFiles("shaders");
-	ScanAndLoadDynGlowFiles("shaders");
+		ScanAndLoadShaderFiles("shaders");
+		ScanAndLoadDynGlowFiles("shaders");
 
-	CreateExternalShaders();
-
-
+		CreateExternalShaders();
+	}
 }

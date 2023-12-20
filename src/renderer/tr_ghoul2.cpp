@@ -5,7 +5,7 @@
 	#include "tr_local.h"
 #endif
 
-#include "matcomp.h"
+#include "../rd-common/matcomp.h"
 #if !defined(_QCOMMON_H_)
 	#include "../qcommon/qcommon.h"
 #endif
@@ -13,7 +13,7 @@
 	#include "../ghoul2/G2.h"
 #endif
 #include "../ghoul2/G2_local.h"
-#include "matcomp.h"
+#include "../rd-common/matcomp.h"
 
 #define	LL(x) x=LittleLong(x)
 

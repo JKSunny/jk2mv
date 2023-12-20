@@ -12,13 +12,12 @@
 #endif
 
 #if !defined(TR_LOCAL_H)
-	#include "../renderer/tr_local.h"
+	#include "tr_local.h"
 #endif
-
-#include "../renderer/matcomp.h"
+#include "../rd-common/matcomp.h"
 
 #if !defined(G2_H_INC)
-	#include "G2.h"
+	#include "../ghoul2/G2.h"
 #endif
 
 #if !defined (MINIHEAP_H_INC)
@@ -26,7 +25,7 @@
 #endif
 
 #include "../server/server.h"
-#include "G2_local.h"
+#include "../ghoul2/G2_local.h"
 
 extern mdxaBone_t		worldMatrix;
 extern mdxaBone_t		worldMatrixInv;

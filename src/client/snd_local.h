@@ -250,6 +250,7 @@ void	S_memoryLoad(sfx_t *sfx);
 //
 ////////////////
 
+qboolean SND_RegisterAudio_LevelLoadEnd(qboolean bDeleteEverythingNotUsedThisLevel /* 99% qfalse */);
 
 extern short *sfxScratchBuffer;
 extern sfx_t *sfxScratchPointer;

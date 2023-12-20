@@ -1,5 +1,7 @@
 // defines to setup the
 
+#pragma once
+
 #include "ghoul2_shared.h"
 
 class CMiniHeap;
@@ -76,6 +78,8 @@ void		G2_RemoveRedundantBolts(boltInfo_v &bltlist, surfaceInfo_v &slist, int *ac
 
 
 // API calls - G2_API.cpp
+void		G2API_FixGhoul2InfoLeaks(bool ricksCrazyOnServer);
+
 int			G2API_GetMaxModelIndex(bool ricksCrazyOnServer);
 qhandle_t	G2API_PrecacheGhoul2Model(const char *fileName);
 CGhoul2Info_v *G2API_GetGhoul2Model(g2handle_t g2h);

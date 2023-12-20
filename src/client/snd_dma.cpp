@@ -24,7 +24,7 @@ static void S_Music_f(void);
 void S_Update_();
 void S_StopAllSounds(void);
 static void S_UpdateBackgroundTrack( void );
-extern int RE_RegisterMedia_GetLevel(void);
+//extern int RE_RegisterMedia_GetLevel(void);
 
 
 //////////////////////////
@@ -3635,7 +3635,7 @@ void S_DisplayFreeMemory()
 		{
 			sfx_t *sfx = &s_knownSfx[i];
 
-			if (sfx->iLastLevelUsedOn == RE_RegisterMedia_GetLevel()){
+			if (sfx->iLastLevelUsedOn == re->RegisterMedia_GetLevel()){
 				iSoundDataSize += SND_MemUsed(sfx);
 			}
 		}
@@ -3647,7 +3647,7 @@ void S_DisplayFreeMemory()
 void SND_TouchSFX(sfx_t *sfx)
 {
 	sfx->iLastTimeUsed		= Com_Milliseconds();	// ditch this field sometime?
-	sfx->iLastLevelUsedOn	= RE_RegisterMedia_GetLevel();
+	sfx->iLastLevelUsedOn	= re->RegisterMedia_GetLevel();
 }
 
 
@@ -3736,11 +3736,11 @@ qboolean SND_RegisterAudio_LevelLoadEnd(qboolean bDeleteEverythingNotUsedThisLev
 
 				if (bDeleteEverythingNotUsedThisLevel)
 				{
-					bDeleteThis = (sfx->iLastLevelUsedOn != RE_RegisterMedia_GetLevel() ) ? qtrue : qfalse;
+					bDeleteThis = (sfx->iLastLevelUsedOn != re->RegisterMedia_GetLevel() ) ? qtrue : qfalse;
 				}
 				else
 				{
-					bDeleteThis = (sfx->iLastLevelUsedOn < RE_RegisterMedia_GetLevel() ) ? qtrue : qfalse;
+					bDeleteThis = (sfx->iLastLevelUsedOn < re->RegisterMedia_GetLevel() ) ? qtrue : qfalse;
 				}
 
 				if (bDeleteThis)

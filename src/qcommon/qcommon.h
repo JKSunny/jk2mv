@@ -633,6 +633,7 @@ int		FS_GetFileList(  const char *path, const char *extension, char *listbuf, in
 int		FS_GetModList(  char *listbuf, int bufsize );
 
 fileHandle_t	FS_FOpenFileWrite( const char *qpath, module_t module = MODULE_MAIN );
+fileHandle_t	FS_FOpenFileWrite_RI( const char *qpath );
 fileHandle_t FS_FOpenBaseFileWrite(const char *filename, module_t module = MODULE_MAIN);
 // will properly create any needed paths and deal with seperater character issues
 
@@ -641,6 +642,7 @@ fileHandle_t FS_SV_FOpenFileAppend( const char *filename, module_t module = MODU
 int		FS_SV_FOpenFileRead( const char *filename, fileHandle_t *fp, module_t module = MODULE_MAIN );
 void	FS_SV_Rename( const char *from, const char *to );
 int		FS_FOpenFileRead( const char *qpath, fileHandle_t *file, qboolean uniqueFILE, module_t module = MODULE_MAIN, qboolean skipJKA = qfalse );
+int		FS_FOpenFileRead_RI( const char *qpath, fileHandle_t *file, qboolean uniqueFILE );
 int		FS_FOpenFileReadHash( const char *filename, fileHandle_t *file, qboolean uniqueFILE, unsigned long *filehash, module_t module = MODULE_MAIN, qboolean skipJKA = qfalse );
 // if uniqueFILE is true, then a new FILE will be fopened even if the file
 // is found in an already open pak file.  If uniqueFILE is false, you must call
@@ -658,6 +660,7 @@ int		FS_Read( void *buffer, int len, fileHandle_t f, module_t module = MODULE_MA
 // properly handles partial reads and reads from other dlls
 
 void	FS_FCloseFile( fileHandle_t f, module_t module = MODULE_MAIN );
+void	FS_FCloseFile_RI( fileHandle_t f );
 // note: you can't just fclose from another DLL, due to MS libc issues
 
 int		FS_ReadFile( const char *qpath, void **buffer );
@@ -898,11 +901,14 @@ void *S_Malloc	( int iSize );					// NOT 0 filled memory only for small allocati
 void *Z_Malloc  ( int iSize, memtag_t eTag, qboolean bZeroit = qfalse );	// return memory NOT zero-filled by default
 void *S_Malloc	( int iSize );					// NOT 0 filled memory only for small allocations
 #endif
+void  Z_MorphMallocTag( void *pvBuffer, memtag_t eDesiredTag );
 void  Z_Validate( void );
 int   Z_MemSize	( memtag_t eTag );
 void  Z_TagFree	( memtag_t eTag );
 void  Z_Free	( void *ptr );
 int	  Z_Size	( void *pvAddress);
+void Com_InitZoneMemory(void);
+void Com_InitHunkMemory(void);
 void Com_ShutdownZoneMemory(void);
 
 void Hunk_Clear( void );
@@ -968,7 +974,7 @@ void	CL_ForwardCommandToServer( const char *string );
 // things like godmode, noclip, etc, are commands directed to the server,
 // so when they are typed in at the console, they will need to be forwarded.
 
-void CL_ShutdownAll( void );
+void CL_ShutdownAll( qboolean shutdownRef );
 // shutdown all the client stuff
 
 void CL_FlushMemory( qboolean disconnecting );

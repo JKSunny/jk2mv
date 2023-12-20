@@ -8,6 +8,7 @@ void S_MuteSound(int entityNum, int entchannel);
 void S_StartSound( const vec3_t origin, int entnum, int entchannel, sfxHandle_t sfx );
 void S_StartLocalSound( sfxHandle_t sfx, int channelNum );
 
+void S_RestartMusic( void );
 void S_StartBackgroundTrack( const char *intro, const char *loop, qboolean bReturnWithoutStarting );
 void S_StopBackgroundTrack( void );
 

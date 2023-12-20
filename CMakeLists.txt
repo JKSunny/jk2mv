@@ -9,6 +9,7 @@ endif()
 set(InMV TRUE)
 
 # Paths
+set(MPDir "${CMAKE_SOURCE_DIR}/src")
 set(LIBDir "${CMAKE_SOURCE_DIR}/libs")
 set(RESDir "${CMAKE_SOURCE_DIR}/res")
 
@@ -219,7 +220,7 @@ if(MSVC)
 	set(CMAKE_C_FLAGS_RELEASE "/MT")
 
 	# Platform
-	set(GlobalDefines ${GlobalDefines} "UNICODE" "_UNICODE")
+	#set(GlobalDefines ${GlobalDefines} "UNICODE" "_UNICODE")
 
 	# Optimization
 	set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MP") # multiprocessor compilation

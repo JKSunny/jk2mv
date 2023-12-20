@@ -2,7 +2,7 @@
 
 #include "client.h"
 #include "../qcommon/strip.h"
-#include "../ghoul2/G2_local.h"
+//#include "../ghoul2/G2_local.h"
 #ifdef _DONETPROFILE_
 #include "../qcommon/INetProfile.h"
 #endif
@@ -331,7 +331,7 @@ void CL_SystemInfoChanged( void ) {
 	cls.cs_remaps = atoi( Info_ValueForKey(systemInfo, "mv_cs_remaps") );
 	if ( cls.cs_remaps != old_cs_remaps ) {
 		// If the configstring changed remove any active advanced remaps
-		re.RemoveAdvancedRemaps();
+		re->RemoveAdvancedRemaps();
 	}
 
 	// don't set any other vars when playing a demo

@@ -121,11 +121,6 @@ if (BuildMVMP OR BuildMVDED)
 		"ghoul2/G2_local.h"
 		"ghoul2/ghoul2_shared.h"
 
-		"ghoul2/G2_API.cpp"
-		"ghoul2/G2_bolts.cpp"
-		"ghoul2/G2_bones.cpp"
-		"ghoul2/G2_misc.cpp"
-		"ghoul2/G2_surfaces.cpp"
 	)
 	source_group("ghoul2" FILES ${MVMPDEDGhoulFiles})
 	set(MVMPDEDFiles ${MVMPDEDFiles} ${MVMPDEDGhoulFiles})
@@ -172,6 +167,7 @@ if (BuildMVMP OR BuildMVDED)
 		"qcommon/strip.cpp"
 		"qcommon/vm.cpp"
 		"qcommon/vm_interpreted.cpp"
+		"qcommon/sstring.h"
 	)
 
 	if(ARCH_X86)
@@ -187,15 +183,16 @@ if (BuildMVMP OR BuildMVDED)
 	set(MVMPDEDFiles ${MVMPDEDFiles} ${MVMPDEDCommonFiles})
 
 	set(MVMPDEDRendererFiles
-		"renderer/matcomp.h"
 		"renderer/mdx_format.h"
 		"renderer/qgl.h"
-		"renderer/tr_font.h"
 		"renderer/tr_local.h"
-		"renderer/tr_public.h"
 		"renderer/tr_quicksprite.h"
 
-		"renderer/matcomp.c"
+		"renderer/G2_API.cpp"
+		"renderer/G2_bolts.cpp"
+		"renderer/G2_bones.cpp"
+		"renderer/G2_misc.cpp"
+		"renderer/G2_surfaces.cpp"
 		"renderer/tr_backend.cpp"
 		"renderer/tr_ghoul2.cpp"
 		"renderer/tr_image.cpp"
@@ -206,6 +203,18 @@ if (BuildMVMP OR BuildMVDED)
 		"renderer/tr_shader.cpp"
 	)
 	source_group("renderer" FILES ${MVMPDEDRendererFiles})
+
+	set(MPRendererCommon
+	"rd-common/tr_public.h"	
+	"rd-common/tr_common.h"
+	"rd-common/tr_types.h"
+	"rd-common/tr_font.h"
+	"rd-common/matcomp.h"
+	"rd-common/tr_font.cpp"	
+	"rd-common/matcomp.c")
+	source_group("rd-common" FILES ${MPRendererCommon})
+	set(MVMPDEDRendererFiles ${MVMPDEDRendererFiles} ${MPRendererCommon})	
+
 	set(MVMPDEDFiles ${MVMPDEDFiles} ${MVMPDEDRendererFiles})
 
 	# Crashlog utilities
@@ -235,6 +244,7 @@ if (BuildMVMP OR BuildMVDED)
 		set(MVMPDEDSysFiles
 			"sys/sys_public.h"
 			"sys/sys_local.h"
+			"sys/sys_loadlib.h"
 
 			"sys/con_win32.cpp"
 			"sys/con_log.cpp"
@@ -247,6 +257,7 @@ if (BuildMVMP OR BuildMVDED)
 			"sys/con_local.h"
 			"sys/sys_public.h"
 			"sys/sys_local.h"
+			"sys/sys_loadlib.h"
 
 			"sys/con_log.cpp"
 			"sys/con_tty.cpp"
@@ -429,7 +440,6 @@ if (BuildMVMP)
 		"renderer/tr_cmds.cpp"
 		"renderer/tr_curve.cpp"
 		"renderer/tr_flares.cpp"
-		"renderer/tr_font.cpp"
 		"renderer/tr_light.cpp"
 		"renderer/tr_marks.cpp"
 		"renderer/tr_noise.cpp"
@@ -444,7 +454,15 @@ if (BuildMVMP)
 		"renderer/tr_world.cpp"
 	)
 	source_group("renderer" FILES ${MVMPRendererFiles})
+
+	#set(MVMPRendererCommon
+	#"${MPDir}/rd-common/tr_language.h")
+	#source_group("rd-common" FILES ${MVMPRendererCommon})
+	#set(MVMPRendererFiles ${MVMPRendererFiles} ${MVMPRendererCommon})	
+
 	set(MVMPFiles ${MVMPFiles} ${MVMPRendererFiles})
+
+	set(MVCLIENTDefines "CLIENT")
 
 	if(WIN32)
 		set(MVMPWIN32Files
@@ -501,7 +519,7 @@ if (BuildMVMP)
 	endif()
 
 	target_compile_definitions(${MVMP}
-		PRIVATE ${GlobalDefines}
+		PRIVATE ${GlobalDefines} ${MVCLIENTDefines}
 		PRIVATE $<$<CONFIG:Debug>:${DebugDefines}>
 		PRIVATE $<$<CONFIG:Release>:${ReleaseDefines}>
 		PRIVATE $<$<CONFIG:RelWithDebInfo>:${ReleaseDefines}>
@@ -625,6 +643,7 @@ endif()
 # jk2mvded
 if (BuildMVDED)
 	set(MVDEDFiles ${MVMPDEDFiles})
+	#set(MVDEDFiles ${MVMPDEDFiles} ${MVMPDEDRendererFiles})
 	set(MVDEDIncludeDirs ${MVGLOBALIncludeDirs} ${MVMPDEDIncludeDirs})
 	set(MVDEDLibraries ${MVMPDEDLibraries})
 

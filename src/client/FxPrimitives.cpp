@@ -1,7 +1,7 @@
 #include "client.h"
 
 #if !defined(G2_H_INC)
-	#include "../ghoul2/G2_local.h"
+	//#include "../ghoul2/G2_local.h"
 #endif
 
 #if !defined(FX_SCHEDULER_H_INC)
@@ -141,7 +141,7 @@ bool CCloud::Update()
 
 		g2Handle = mBoltInterface.GetG2Handle();
 
-		if (!g2Handle || !G2API_HaveWeGhoul2Models(g2Handle))
+		if (!g2Handle || !re->G2API_HaveWeGhoul2Models(g2Handle))
 		{
 			return false;
 		}
@@ -160,13 +160,9 @@ bool CCloud::Update()
 
 		mBoltInterface.GetScale(objScale);
 
-		if (0)
-		{
-			gG2_GBMNoReconstruct = qtrue;
-		}
-		G2API_GetBoltMatrix(g2Handle, mBoltInterface.GetModelNum(), mBoltInterface.GetBoltNum(), &boltMatrix, objAng, objOrg, theFxHelper.mTime, NULL, objScale);
+		re->G2API_GetBoltMatrix(g2Handle, mBoltInterface.GetModelNum(), mBoltInterface.GetBoltNum(), &boltMatrix, objAng, objOrg, theFxHelper.mTime, NULL, objScale);
 
-		G2API_GiveMeVectorFromMatrix(&boltMatrix, ORIGIN, org);
+		re->G2API_GiveMeVectorFromMatrix(&boltMatrix, ORIGIN, org);
 
 		ForceOrigin1(org);
 	}
@@ -389,7 +385,7 @@ bool CParticle::Update()
 
 		g2Handle = mObj->GetG2Handle();
 
-		if (!g2Handle || !G2API_HaveWeGhoul2Models(g2Handle))
+		if (!g2Handle || !re->G2API_HaveWeGhoul2Models(g2Handle))
 		{
 			return false;
 		}
@@ -408,9 +404,9 @@ bool CParticle::Update()
 
 		mObj->GetScale(objScale);
 
-		G2API_GetBoltMatrix(g2Handle, mObj->GetModelNum(), mObj->GetBoltNum(), &boltMatrix, objAng, objOrg, theFxHelper.mTime, /*MODELLIST*/NULL, objScale);
+		re->G2API_GetBoltMatrix(g2Handle, mObj->GetModelNum(), mObj->GetBoltNum(), &boltMatrix, objAng, objOrg, theFxHelper.mTime, /*MODELLIST*/NULL, objScale);
 
-		G2API_GiveMeVectorFromMatrix(&boltMatrix, ORIGIN, org);
+		re->G2API_GiveMeVectorFromMatrix(&boltMatrix, ORIGIN, org);
 
 		//Get the offset from the bolt point right now, and compare it to the offset in the initial position, then add onto the current position so that our offset is equal
 		//FIXME: Take current offset caused by random bouncing/velocity into account somehow?
@@ -2098,7 +2094,7 @@ inline void CBezier::DrawSegment( vec3_t start, vec3_t end, float texcoord1, flo
 	verts[3].modulate[2] = mRefEnt.shaderRGBA[2] * ( 1.0f - texcoord2 );
 	verts[3].modulate[3] = mRefEnt.shaderRGBA[3];
 
-	re.AddPolyToScene( mRefEnt.customShader, 4, verts, 1 );
+	re->AddPolyToScene( mRefEnt.customShader, 4, verts, 1 );
 
 	VectorCopy( verts[2].xyz, lastEnd[1] );
 	VectorCopy( verts[3].xyz, lastEnd[0] );

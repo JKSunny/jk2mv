@@ -7,6 +7,7 @@
 
 // these definitions also need to be in q_shared.h!
 
+#define CONTENTS_NONE			0x00000000u
 #define	CONTENTS_SOLID			0x00000001u	// Default setting. An eye is never valid in a solid
 #define	CONTENTS_LAVA			0x00000002u
 #define	CONTENTS_WATER			0x00000004u
@@ -34,6 +35,7 @@
 
 #define CONTENTS_ALL			0xFFFFFFFFu
 
+#define SURF_NONE				0x00000000u
 #define	SURF_SKY				0x00002000u	// lighting from environment map
 #define	SURF_SLICK				0x00004000u	// affects game physics
 #define	SURF_METALSTEPS			0x00008000u	// CHC needs this since we use same tools (though this flag is temp?)

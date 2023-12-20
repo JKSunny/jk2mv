@@ -18,8 +18,12 @@
 #endif
 #include "../qcommon/qcommon.h"
 #include "../sys/sys_local.h"
+#include "../sys/sys_loadlib.h"
 #include "../sys/sys_public.h"
 #include "con_local.h"
+
+static char binaryPath[ MAX_OSPATH ] = { 0 };
+static char installPath[ MAX_OSPATH ] = { 0 };
 
 cvar_t *com_minimized;
 cvar_t *com_unfocused;
@@ -28,6 +32,50 @@ cvar_t *com_maxfpsMinimized;
 cvar_t *com_maxfpsUnfocused;
 
 static volatile sig_atomic_t sys_signal = 0;
+
+/*
+=================
+Sys_BinaryPath
+=================
+*/
+char *Sys_BinaryPath(void)
+{
+	return binaryPath;
+}
+
+/*
+=================
+Sys_SetDefaultInstallPath
+=================
+*/
+void Sys_SetDefaultInstallPath(const char *path)
+{
+	Q_strncpyz(installPath, path, sizeof(installPath));
+}
+
+/*
+=================
+Sys_DefaultInstallPath
+=================
+*/
+char *Sys_DefaultInstallPath(void)
+{
+	if (*installPath)
+		return installPath;
+	else
+		return Sys_Cwd();
+}
+
+/*
+=================
+Sys_DefaultAppPath
+=================
+*/
+char *Sys_DefaultAppPath(void)
+{
+	return Sys_BinaryPath();
+
+}
 
 /*
 ==================
@@ -191,6 +239,174 @@ time_t Sys_FileTime(const char *path) {
 
 	return buf.st_mtime;
 }
+
+
+/*
+=================
+Sys_UnloadModuleLibrary
+=================
+*/
+void Sys_UnloadModuleLibrary(void *dllHandle) {
+	if (!dllHandle) {
+		return;
+	}
+
+	if (!FreeLibrary((HMODULE)dllHandle)) {
+		Com_Error(ERR_FATAL, "Sys_UnloadDll FreeLibrary failed");
+	}
+}
+
+/*
+=================
+Sys_UnloadDll
+=================
+*/
+void Sys_UnloadDll( void *dllHandle )
+{
+	if( !dllHandle )
+	{
+		Com_Printf("Sys_UnloadDll(NULL)\n");
+		return;
+	}
+
+	Sys_UnloadLibrary(dllHandle);
+}
+
+/*
+=================
+Sys_LoadDll
+First try to load library name from system library path,
+from executable path, then fs_basepath.
+=================
+*/
+
+extern char		*FS_BuildOSPath( const char *base, const char *game, const char *qpath );
+
+void *Sys_LoadDll(const char *name, qboolean useSystemLib)
+{
+	void *dllhandle = NULL;
+
+	// Don't load any DLLs that end with the pk3 extension
+	if ( COM_CompareExtension( name, ".pk3" ) )
+	{
+		Com_Printf( S_COLOR_YELLOW "WARNING: Rejecting DLL named \"%s\"", name );
+		return NULL;
+	}
+
+	if ( useSystemLib )
+	{
+		Com_Printf( "Trying to load \"%s\"...\n", name );
+
+		dllhandle = Sys_LoadLibrary( name );
+		if ( dllhandle )
+			return dllhandle;
+
+		Com_Printf( "%s(%s) failed: \"%s\"\n", __FUNCTION__, name, Sys_LibraryError() );
+	}
+
+	//fn = FS_BuildOSPath( cdpath, gamedir, name );
+	const char *binarypath = Sys_BinaryPath();
+	const char *basepath = Cvar_VariableString( "fs_basepath" );
+
+	if ( !*binarypath )
+		binarypath = ".";
+
+	const char *searchPaths[] = {
+		binarypath,
+		basepath,
+	};
+	const size_t numPaths = ARRAY_LEN( searchPaths );
+
+	for ( size_t i = 0; i < numPaths; i++ )
+	{
+		const char *libDir = searchPaths[i];
+		if ( !libDir[0] )
+			continue;
+
+		Com_Printf( "Trying to load \"%s\" from \"%s\"...\n", name, libDir );
+		char *fn = va( "%s%c%s", libDir, PATH_SEP, name );
+		dllhandle = Sys_LoadLibrary( fn );
+		if ( dllhandle )
+			return dllhandle;
+
+		Com_Printf( "%s(%s) failed: \"%s\"\n", __FUNCTION__, fn, Sys_LibraryError() );
+	}
+	return NULL;
+}
+
+/*
+=================
+Sys_LoadModuleLibrary
+
+Used to load a module (jk2mpgame, cgame, ui) dll
+=================
+*/
+void *Sys_LoadModuleLibrary(const char *name, qboolean mvOverride, VM_EntryPoint_t *entryPoint, intptr_t(QDECL *systemcalls)(intptr_t, ...)) {
+	HMODULE	libHandle;
+	void	(QDECL *dllEntry)(intptr_t(QDECL *syscallptr)(intptr_t, ...));
+	const char	*path, *filePath;
+	char	filename[MAX_QPATH];
+
+	Com_sprintf(filename, sizeof(filename), "%s_" ARCH_STRING "." LIBRARY_EXTENSION, name);
+
+	if (!mvOverride) {
+		path = Cvar_VariableString("fs_basepath");
+		filePath = FS_BuildOSPath(path, NULL, filename);
+
+		Com_DPrintf("Loading module: %s...", filePath);
+		libHandle = LoadLibraryA(filePath);
+		if (!libHandle) {
+			Com_DPrintf(" failed!\n");
+			path = Cvar_VariableString("fs_homepath");
+			filePath = FS_BuildOSPath(path, NULL, filename);
+
+			Com_DPrintf("Loading module: %s...", filePath);
+			libHandle = LoadLibraryA(filePath);
+			if (!libHandle) {
+				Com_DPrintf(" failed!\n");
+				return NULL;
+			} else {
+				Com_DPrintf(" success!\n");
+			}
+		} else {
+			Com_DPrintf(" success!\n");
+		}
+	} else {
+		char dllPath[MAX_PATH];
+		path = Cvar_VariableString("fs_basepath");
+		Com_sprintf(dllPath, sizeof(dllPath), "%s\\%s", path, filename);
+
+		Com_DPrintf("Loading module: %s...", dllPath);
+		libHandle = LoadLibraryA(dllPath);
+		if (!libHandle) {
+			Com_DPrintf(" failed!\n");
+			return NULL;
+		} else {
+			Com_DPrintf(" success!\n");
+		}
+	}
+
+	dllEntry = (void (QDECL *)(intptr_t(QDECL *)(intptr_t, ...)))GetProcAddress(libHandle, "dllEntry");
+	*entryPoint = (VM_EntryPoint_t)GetProcAddress(libHandle, "vmMain");
+
+	if (!*entryPoint) {
+		Com_DPrintf("Could not find vmMain in %s\n", filename);
+		FreeLibrary(libHandle);
+		return NULL;
+	}
+
+	if (!dllEntry) {
+		Com_DPrintf("Could not find dllEntry in %s\n", filename);
+		FreeLibrary(libHandle);
+		return NULL;
+	}
+
+	dllEntry(systemcalls);
+
+	return libHandle;
+}
+
+
 
 /*
 =================

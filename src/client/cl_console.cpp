@@ -568,15 +568,15 @@ void Con_DrawInput (void) {
 		return;
 	}
 
-	y = con.vislines - ( con.charHeight * (re.Language_IsAsian() ? 1.5 : 2) );
+	y = con.vislines - ( con.charHeight * (re->Language_IsAsian() ? 1.5 : 2) );
 
-	re.SetColor( con.color );
+	re->SetColor( con.color );
 
 	Field_Draw( &kg.g_consoleField, 2 * con.charWidth, y, qtrue );
 
 	SCR_DrawSmallChar( con.charWidth, y, CONSOLE_PROMPT_CHAR );
 
-	re.SetColor( g_color_table[ColorIndex_Extended(COLOR_LT_TRANSPARENT)] );
+	re->SetColor( g_color_table[ColorIndex_Extended(COLOR_LT_TRANSPARENT)] );
 
 	if ( kg.g_consoleField.scroll > 0 )
 		SCR_DrawSmallChar( 0, y, CON_SCROLL_L_CHAR );
@@ -607,16 +607,16 @@ void Con_DrawNotify (void)
 	int		skip;
 
 	currentColor = 7;
-	re.SetColor( g_color_table[currentColor] );
+	re->SetColor( g_color_table[currentColor] );
 
-	static int iFontIndex = re.RegisterFont("ocr_a");
+	static int iFontIndex = re->RegisterFont("ocr_a");
 	float fFontScale = 1.0f;
 	int iPixelHeightToAdvance = 0;
-	if (re.Language_IsAsian())
+	if (re->Language_IsAsian())
 	{
 		fFontScale = con.charWidth * 10.0f /
-			re.Font_StrLenPixels("aaaaaaaaaa", iFontIndex, 1.0f, cls.xadjust, cls.yadjust);
-		iPixelHeightToAdvance = 1.3 * re.Font_HeightPixels(iFontIndex, fFontScale, cls.xadjust, cls.yadjust);
+			re->Font_StrLenPixels("aaaaaaaaaa", iFontIndex, 1.0f, cls.xadjust, cls.yadjust);
+		iPixelHeightToAdvance = 1.3 * re->Font_HeightPixels(iFontIndex, fFontScale, cls.xadjust, cls.yadjust);
 	}
 
 	v = 0;
@@ -648,7 +648,7 @@ void Con_DrawNotify (void)
 		//
 		// (ignore colours since we're going to print the whole thing as one string)
 		//
-		if (re.Language_IsAsian())
+		if (re->Language_IsAsian())
 		{
 			// concat the text to be printed...
 			//
@@ -665,7 +665,7 @@ void Con_DrawNotify (void)
 			//
 			// and print...
 			//
-			re.Font_DrawString(cl_conXOffset->integer + con.charWidth, v, sTemp,
+			re->Font_DrawString(cl_conXOffset->integer + con.charWidth, v, sTemp,
 				g_color_table[currentColor], iFontIndex, -1, fFontScale, cls.xadjust, cls.yadjust);
 
 			v +=  iPixelHeightToAdvance;
@@ -678,7 +678,7 @@ void Con_DrawNotify (void)
 				}
 				if ( text[x].f.color != currentColor ) {
 					currentColor = text[x].f.color;
-					re.SetColor( g_color_table[currentColor] );
+					re->SetColor( g_color_table[currentColor] );
 				}
 				if (!cl_conXOffset)
 				{
@@ -691,7 +691,7 @@ void Con_DrawNotify (void)
 		}
 	}
 
-	re.SetColor( NULL );
+	re->SetColor( NULL );
 
 	if (cls.keyCatchers & (KEYCATCH_UI | KEYCATCH_CGAME) ) {
 		return;
@@ -750,12 +750,12 @@ void Con_DrawSolidConsole( float frac ) {
 	else {
 		static vec4_t consoleShaderColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 		consoleShaderColor[3] = Com_Clamp( 0.0f, 1.0f, con_opacity->value );
-		re.SetColor( consoleShaderColor );
+		re->SetColor( consoleShaderColor );
 		SCR_DrawPic( 0, 0, SCREEN_WIDTH, (float) y, cls.consoleShader );
 	}
 
 	// draw the bottom bar and version number
-	re.SetColor( g_color_table[ColorIndex_Extended(COLOR_JK2MV)] );
+	re->SetColor( g_color_table[ColorIndex_Extended(COLOR_JK2MV)] );
 	SCR_DrawPic( 0, y, SCREEN_WIDTH, 2, cls.whiteShader );
 
 
@@ -779,7 +779,7 @@ void Con_DrawSolidConsole( float frac ) {
 	if (con.display != con.current)
 	{
 		// draw arrows to show the buffer is backscrolled
-		re.SetColor( g_color_table[ColorIndex(COLOR_RED)] );
+		re->SetColor( g_color_table[ColorIndex(COLOR_RED)] );
 		for (x=0 ; x<con.linewidth ; x+=4)
 			SCR_DrawSmallChar( (x+1)*con.charWidth, y, '^' );
 		y -= con.charHeight;
@@ -793,16 +793,16 @@ void Con_DrawSolidConsole( float frac ) {
 	}
 
 	currentColor = 7;
-	re.SetColor( g_color_table[currentColor] );
+	re->SetColor( g_color_table[currentColor] );
 
-	static int iFontIndex = re.RegisterFont("ocr_a");
+	static int iFontIndex = re->RegisterFont("ocr_a");
 	float fFontScale = 1.0f;
 	int iPixelHeightToAdvance = con.charHeight;
-	if (re.Language_IsAsian())
+	if (re->Language_IsAsian())
 	{
 		fFontScale = con.charWidth * 10.0f /
-			re.Font_StrLenPixels("aaaaaaaaaa", iFontIndex, 1.0f, cls.xadjust, cls.yadjust);
-		iPixelHeightToAdvance = 1.3 * re.Font_HeightPixels(iFontIndex, fFontScale, cls.xadjust, cls.yadjust);
+			re->Font_StrLenPixels("aaaaaaaaaa", iFontIndex, 1.0f, cls.xadjust, cls.yadjust);
+		iPixelHeightToAdvance = 1.3 * re->Font_HeightPixels(iFontIndex, fFontScale, cls.xadjust, cls.yadjust);
 	}
 
 	for (i=0 ; i<rows ; i++, y -= iPixelHeightToAdvance, row--)
@@ -822,7 +822,7 @@ void Con_DrawSolidConsole( float frac ) {
 		//
 		// (ignore colours since we're going to print the whole thing as one string)
 		//
-		if (re.Language_IsAsian())
+		if (re->Language_IsAsian())
 		{
 			// concat the text to be printed...
 			//
@@ -839,7 +839,7 @@ void Con_DrawSolidConsole( float frac ) {
 			//
 			// and print...
 			//
-			re.Font_DrawString(con.charWidth, y, sTemp, g_color_table[currentColor],
+			re->Font_DrawString(con.charWidth, y, sTemp, g_color_table[currentColor],
 				iFontIndex, -1, fFontScale, cls.xadjust, cls.yadjust);
 		}
 		else
@@ -851,14 +851,14 @@ void Con_DrawSolidConsole( float frac ) {
 
 				if ( text[x].f.color != currentColor ) {
 					currentColor = text[x].f.color;
-					re.SetColor( g_color_table[currentColor] );
+					re->SetColor( g_color_table[currentColor] );
 				}
 				SCR_DrawSmallChar( (x+1)*con.charWidth, y, text[x].f.character );
 			}
 		}
 	}
 
-	re.SetColor( NULL );
+	re->SetColor( NULL );
 }
 
 

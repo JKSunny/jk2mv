@@ -1,6 +1,7 @@
 // world.c -- world query functions
 
 #include "server.h"
+#include "../ghoul2/ghoul2_shared.h"
 
 /*
 ================

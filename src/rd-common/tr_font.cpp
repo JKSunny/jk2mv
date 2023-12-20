@@ -1,11 +1,14 @@
 // tr_font.c
 //
 //
-#include "tr_local.h"
-//#include "../qcommon/qcommon.h"
+#ifndef DEDICATED
+#include "../renderer/tr_local.h"
 
-#include "tr_local.h"
 #include "tr_font.h"
+
+#ifndef DEDICATED
+#include "tr_language.h"
+#endif
 
 #include <vector>
 #include <map>
@@ -13,6 +16,73 @@
 
 using namespace std;
 
+#define GLYPH_MAX_KOREAN_SHADERS 3
+#define GLYPH_MAX_TAIWANESE_SHADERS 4
+#define GLYPH_MAX_JAPANESE_SHADERS 3
+#define GLYPH_MAX_ASIAN_SHADERS 4	// this MUST equal the larger of the above defines
+
+#define MAX_FONT_VARIANTS 8
+
+class CFontInfo
+{
+private:
+	// From the fontdat file
+	glyphInfo_t		mGlyphs[GLYPH_COUNT];
+
+	int				mPointSize;
+	int				mHeight;
+	int				mAscender;
+	int				mDescender;
+
+	int				mAsianHack;
+	// end of fontdat data
+
+
+	int				mShader;				// handle to the shader with the glyph
+
+	char			m_sFontName[MAX_QPATH];	// eg "fonts/lcd"	// needed for korean font-hint if we need >1 hangul set
+
+	int				m_hAsianShaders[GLYPH_MAX_ASIAN_SHADERS];	// shaders for Korean glyphs where applicable
+	glyphInfo_t		m_AsianGlyph;			// special glyph containing asian->western scaling info for all glyphs
+	int				m_iAsianGlyphsAcross;	// needed to dynamically calculate S,T coords
+	int				m_iAsianPagesLoaded;
+	bool			m_bAsianLastPageHalfHeight;
+	int				m_iAsianLanguageLoaded;	// doesn't matter what this is, so long as it's comparable as being changed
+
+	CFontInfo		*m_variants[MAX_FONT_VARIANTS];
+	int				m_numVariants;
+	int				m_handle;
+
+public:
+	bool			mbRoundCalcs;	// trying to make this !@#$%^ thing work with scaling
+
+	CFontInfo(const char *fontName);
+	CFontInfo(int fill) { memset(this, fill, sizeof(*this)); }
+	~CFontInfo(void) {}
+
+	int GetHandle();
+
+	void AddVariant(CFontInfo *variant);
+	int GetNumVariants();
+	CFontInfo *GetVariant(int index);
+
+	const int GetPointSize(void) const { return(mPointSize); }
+	const int GetHeight(void) const { return(mHeight); }
+	const int GetAscender(void) const { return(mAscender); }
+	const int GetDescender(void) const { return(mDescender); }
+
+	const glyphInfo_t *GetLetter(const unsigned int uiLetter, int *piShader = NULL);
+	const int GetAsianCode(unsigned int uiLetter) const;
+
+	const int GetLetterWidth(const unsigned int uiLetter) const;
+	const int GetLetterHorizAdvance(const unsigned int uiLetter) const;
+	const int GetShader(void) const { return(mShader); }
+
+	void FlagNoAsianGlyphs(void) { m_hAsianShaders[0] = 0; m_iAsianLanguageLoaded = -1; }	// used during constructor
+	bool AsianGlyphsAvailable(void) const { return !!(m_hAsianShaders[0]); }
+
+	void UpdateAsianIfNeeded( bool bForceReEval = false);
+};
 
 inline int Round(float value)
 {
@@ -700,8 +770,12 @@ CFontInfo *RE_Font_GetVariant(CFontInfo *font, float *scale, float xadjust, floa
 
 	if (variants > 0) {
 		CFontInfo *variant;
-		int requestedSize = font->GetPointSize() * *scale *
+		/*int requestedSize = font->GetPointSize() * *scale *
 			r_fontSharpness->value * glConfig.vidHeight *
+			(yadjust / SCREEN_HEIGHT);*/
+
+		int requestedSize = font->GetPointSize() * *scale *
+			1.0 * glConfig.vidHeight *
 			(yadjust / SCREEN_HEIGHT);
 
 		if (requestedSize <= font->GetPointSize())
@@ -829,8 +903,6 @@ void RE_Font_DrawString(int ox, int oy, const char *psText, const vec4_t rgba, i
 	const glyphInfo_t	*pLetter;
 	qhandle_t			hShader;
 	qboolean			qbThisCharCountsAsLetter;	// logic for this bool must be kept same in this function and RE_Font_StrLenChars()
-	bool				colorShadow = (MV_GetCurrentGameversion() == VERSION_1_02 || mv_coloredTextShadows->integer == 1) && mv_coloredTextShadows->integer;
-	int					colourChain = 0;
 
 	if(iFontHandle & STYLE_BLINK)
 	{
@@ -859,14 +931,43 @@ void RE_Font_DrawString(int ox, int oy, const char *psText, const vec4_t rgba, i
 
 	// Draw a dropshadow if required
 	if (iFontHandle & STYLE_DROPSHADOW) {
-		static const vec4_t v4DKGREY2 = {0.15f, 0.15f, 0.15f, 1};
+		// todo
+		/*if ((MV_GetCurrentGameversion() == VERSION_1_02 || mv_coloredTextShadows->integer == 1) && mv_coloredTextShadows->integer) {
+			int i = 0, r = 0;
+			char dropShadowText[1024];
+			static const vec4_t v4DKGREY2 = { 0.15f, 0.15f, 0.15f, 1 };
 
-		offset = Round(curfont->GetPointSize() * fScale * 0.075f);
+			offset = Round(curfont->GetPointSize() * fScale * 0.075f);
 
-		gbInShadow = qtrue;
-		RE_Font_DrawString(ox + offset, oy + offset, psText, v4DKGREY2,
-			iFontHandle & SET_MASK, iCharLimit, fScale, xadjust, yadjust);
-		gbInShadow = qfalse;
+			//^blah stuff confuses shadows, so parse it out first
+			while (psText[i] && r < 1024) {
+				if (psText[i] == '^') {
+					if ((i < 1 || psText[i - 1] != '^') &&
+						(!psText[i + 1] || psText[i + 1] != '^')) { //If char before or after ^ is ^ then it prints ^ instead of accepting a colorcode
+						i += 2;
+					}
+				}
+
+				dropShadowText[r] = psText[i];
+				r++;
+				i++;
+			}
+			dropShadowText[r] = 0;
+
+			RE_Font_DrawString(ox + offset, oy + offset, dropShadowText, v4DKGREY2,
+				iFontHandle & SET_MASK, iCharLimit, fScale, xadjust, yadjust);
+		}
+		else
+		{
+			static const vec4_t v4DKGREY2 = {0.15f, 0.15f, 0.15f, 1};
+
+			offset = Round(curfont->GetPointSize() * fScale * 0.075f);
+
+			gbInShadow = qtrue;
+			RE_Font_DrawString(ox + offset, oy + offset, psText, v4DKGREY2,
+				iFontHandle & SET_MASK, iCharLimit, fScale, xadjust, yadjust);
+			gbInShadow = qfalse;
+		}*/
 	}
 
 	RE_SetColor( rgba );
@@ -891,9 +992,8 @@ void RE_Font_DrawString(int ox, int oy, const char *psText, const vec4_t rgba, i
 		case '^':
 			if ( !*psText ) break; // If we were given a string ending with '^'
 			colour = ColorIndex(*psText);
-			colourChain++; // Keep track of the amount of chained colors
-			if (!gbInShadow || (colorShadow && !(colourChain % 2)))
-			{ // For colored shadows (when enabled) every second color in a chain is applied to the shadow
+			if (!gbInShadow)
+			{
 				RE_SetColor( g_color_table[colour] );
 			}
 			++psText;
@@ -939,9 +1039,6 @@ void RE_Font_DrawString(int ox, int oy, const char *psText, const vec4_t rgba, i
 			fx += (float)pLetter->horizAdvance * fThisScale;
 			break;
 		}
-
-		// Reset colourChain if we hit a non colorcode
-		if ( uiLetter != '^' ) colourChain = 0;
 
 		if (qbThisCharCountsAsLetter && iCharLimit != -1)
 		{
@@ -1031,3 +1128,4 @@ void R_ShutdownFonts(void)
 	fontIndex = 1;	// entry 0 is reserved for "missing/invalid"
 }
 
+#endif

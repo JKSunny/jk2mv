@@ -23,7 +23,7 @@ Ghoul2 Insert Start
 */
 
 #if !defined(G2_H_INC)
-	#include "../ghoul2/G2_local.h"
+//	#include "../ghoul2/G2_local.h"
 #endif
 
 #include "../qcommon/strip.h"
@@ -633,7 +633,7 @@ void MV_AddLightToScene(const vec3_t org, float intensity, float r, float g, flo
 		}
 	}
 
-	re.AddLightToScene(org, intensity, r, g, b);
+	re->AddLightToScene(org, intensity, r, g, b);
 }
 
 /*
@@ -663,7 +663,6 @@ CL_CgameSystemCalls
 The cgame module is making a system call
 ====================
 */
-extern bool RicksCrazyOnServer;
 intptr_t CL_CgameSystemCalls(intptr_t *args) {
 	// fix syscalls from 1.02 to match 1.04
 	// this is a mess... can it be done better?
@@ -677,7 +676,7 @@ intptr_t CL_CgameSystemCalls(intptr_t *args) {
 	}
 
 	// set cgame ghoul2 context
-	RicksCrazyOnServer = false;
+	re->G2API_RicksCrazyOnServer( false );
 
 	switch( args[0] ) {
 	case CG_PRINT:
@@ -767,7 +766,7 @@ intptr_t CL_CgameSystemCalls(intptr_t *args) {
 		CM_TransformedBoxTrace( VMAV(1, trace_t), VMAP(2, const vec_t, 3), VMAP(3, const vec_t, 3), VMAP(4, const vec_t, 3), VMAP(5, const vec_t, 3), args[6], args[7], VMAP(8, const vec_t, 3), VMAP(9, const vec_t, 3), qtrue );
 		return 0;
 	case CG_CM_MARKFRAGMENTS:
-		return re.MarkFragments( args[1], VMAA(2, const vec3_t, args[1]), VMAP(3, const vec_t, 3), args[4], VMAA(5, vec3_t, args[4]), args[6], VMAA(7, markFragment_t, args[6]) );
+		return re->MarkFragments( args[1], VMAA(2, const vec3_t, args[1]), VMAP(3, const vec_t, 3), args[4], VMAA(5, vec3_t, args[4]), args[6], VMAA(7, markFragment_t, args[6]) );
 	case CG_S_MUTESOUND:
 		S_MuteSound( args[1], args[2] );
 		return 0;
@@ -801,76 +800,76 @@ intptr_t CL_CgameSystemCalls(intptr_t *args) {
 		S_StartBackgroundTrack( VMAS(1), VMAS(2), (qboolean)!!args[3] );
 		return 0;
 	case CG_R_LOADWORLDMAP:
-		re.LoadWorld( VMAS(1) );
+		re->LoadWorld( VMAS(1) );
 		return 0;
 	case CG_R_REGISTERMODEL:
-		return re.RegisterModel( VMAS(1) );
+		return re->RegisterModel( VMAS(1) );
 	case CG_R_REGISTERSKIN:
-		return re.RegisterSkin( VMAS(1) );
+		return re->RegisterSkin( VMAS(1) );
 	case CG_R_REGISTERSHADER:
-		return re.RegisterShader( VMAS(1) );
+		return re->RegisterShader( VMAS(1) );
 	case CG_R_REGISTERSHADERNOMIP:
-		return re.RegisterShaderNoMip( VMAS(1) );
+		return re->RegisterShaderNoMip( VMAS(1) );
 	case CG_R_REGISTERFONT:
-		return re.RegisterFont( VMAS(1) );
+		return re->RegisterFont( VMAS(1) );
 	case CG_R_FONT_STRLENPIXELS:
-		return re.Font_StrLenPixels( VMAS(1), args[2], VMF(3), cls.cgxadj, cls.cgyadj );
+		return re->Font_StrLenPixels( VMAS(1), args[2], VMF(3), cls.cgxadj, cls.cgyadj );
 	case CG_R_FONT_STRLENCHARS:
-		return re.Font_StrLenChars( VMAS(1) );
+		return re->Font_StrLenChars( VMAS(1) );
 	case CG_R_FONT_STRHEIGHTPIXELS:
-		return re.Font_HeightPixels( args[1], VMF(2), cls.cgxadj, cls.cgyadj );
+		return re->Font_HeightPixels( args[1], VMF(2), cls.cgxadj, cls.cgyadj );
 	case CG_R_FONT_DRAWSTRING:
-		re.Font_DrawString( args[1], args[2], VMAS(3), VMAP(4, const vec_t, 4), args[5], args[6], VMF(7), cls.cgxadj, cls.cgyadj );
+		re->Font_DrawString( args[1], args[2], VMAS(3), VMAP(4, const vec_t, 4), args[5], args[6], VMF(7), cls.cgxadj, cls.cgyadj );
 		return 0;
 	case CG_LANGUAGE_ISASIAN:
-		return re.Language_IsAsian();
+		return re->Language_IsAsian();
 	case CG_LANGUAGE_USESSPACES:
-		return re.Language_UsesSpaces();
+		return re->Language_UsesSpaces();
 	case CG_ANYLANGUAGE_READCHARFROMSTRING:
-		return re.AnyLanguage_ReadCharFromString( VMAS(1), VMAV(2, int), VMAV(3, qboolean) );
+		return re->AnyLanguage_ReadCharFromString( VMAS(1), VMAV(2, int), VMAV(3, qboolean) );
 	case CG_R_CLEARSCENE:
-		re.ClearScene();
+		re->ClearScene();
 		return 0;
 	case CG_R_ADDREFENTITYTOSCENE:
-		re.AddRefEntityToScene(VMAV(1, const refEntity_t), qfalse);
+		re->AddRefEntityToScene(VMAV(1, const refEntity_t), qfalse);
 		return 0;
 	case CG_R_ADDPOLYTOSCENE:
-		re.AddPolyToScene( args[1], args[2], VMAA(3, const polyVert_t, args[2]), 1 );
+		re->AddPolyToScene( args[1], args[2], VMAA(3, const polyVert_t, args[2]), 1 );
 		return 0;
 	case CG_R_ADDPOLYSTOSCENE:
 		// args[2] * args[4] > INT_MAX
 		if ( args[4] > 0 && args[2] > INT_MAX / args[4] ) {
 			Com_Error( ERR_DROP, "CG_R_ADDPOLYSTOSCENE: too many vertices" );
 		}
-		re.AddPolyToScene( args[1], args[2], VMAA(3, const polyVert_t, args[2] * args[4]), args[4] );
+		re->AddPolyToScene( args[1], args[2], VMAA(3, const polyVert_t, args[2] * args[4]), args[4] );
 		return 0;
 	case CG_R_LIGHTFORPOINT:
-		return re.LightForPoint( VMAP(1, vec_t, 3), VMAP(2, vec_t, 3), VMAP(3, vec_t, 3), VMAP(4, vec_t, 3) );
+		return re->LightForPoint( VMAP(1, vec_t, 3), VMAP(2, vec_t, 3), VMAP(3, vec_t, 3), VMAP(4, vec_t, 3) );
 	case CG_R_ADDLIGHTTOSCENE:
 		MV_AddLightToScene(VMAP(1, const vec_t, 3), VMF(2), VMF(3), VMF(4), VMF(5));
 		return 0;
 	case CG_R_ADDADDITIVELIGHTTOSCENE:
-		re.AddAdditiveLightToScene( VMAP(1, const vec_t, 3), VMF(2), VMF(3), VMF(4), VMF(5) );
+		re->AddAdditiveLightToScene( VMAP(1, const vec_t, 3), VMF(2), VMF(3), VMF(4), VMF(5) );
 		return 0;
 	case CG_R_RENDERSCENE:
-		re.RenderScene( VMAV(1, const refdef_t) );
+		re->RenderScene( VMAV(1, const refdef_t) );
 		return 0;
 	case CG_R_SETCOLOR:
-		re.SetColor( VMAP(1, vec_t, 4) );
+		re->SetColor( VMAP(1, vec_t, 4) );
 		return 0;
 	case CG_R_DRAWSTRETCHPIC:
-		re.DrawStretchPic( VMF(1), VMF(2), VMF(3), VMF(4), VMF(5), VMF(6), VMF(7), VMF(8), args[9], cls.cgxadj, cls.cgyadj );
+		re->DrawStretchPic( VMF(1), VMF(2), VMF(3), VMF(4), VMF(5), VMF(6), VMF(7), VMF(8), args[9], cls.cgxadj, cls.cgyadj );
 		return 0;
 	case CG_R_MODELBOUNDS:
-		re.ModelBounds( args[1], VMAP(2, vec_t, 3), VMAP(3, vec_t, 3) );
+		re->ModelBounds( args[1], VMAP(2, vec_t, 3), VMAP(3, vec_t, 3) );
 		return 0;
 	case CG_R_LERPTAG:
-		return re.LerpTag( VMAV(1, orientation_t), args[2], args[3], args[4], VMF(5), VMAS(6) );
+		return re->LerpTag( VMAV(1, orientation_t), args[2], args[3], args[4], VMF(5), VMAS(6) );
 	case CG_R_DRAWROTATEPIC:
-		re.DrawRotatePic( VMF(1), VMF(2), VMF(3), VMF(4), VMF(5), VMF(6), VMF(7), VMF(8), VMF(9), args[10], cls.cgxadj, cls.cgyadj );
+		re->DrawRotatePic( VMF(1), VMF(2), VMF(3), VMF(4), VMF(5), VMF(6), VMF(7), VMF(8), VMF(9), args[10], cls.cgxadj, cls.cgyadj );
 		return 0;
 	case CG_R_DRAWROTATEPIC2:
-		re.DrawRotatePic2( VMF(1), VMF(2), VMF(3), VMF(4), VMF(5), VMF(6), VMF(7), VMF(8), VMF(9), args[10], cls.cgxadj, cls.cgyadj );
+		re->DrawRotatePic2( VMF(1), VMF(2), VMF(3), VMF(4), VMF(5), VMF(6), VMF(7), VMF(8), VMF(9), args[10], cls.cgxadj, cls.cgyadj );
 		return 0;
 	case CG_GETGLCONFIG:
 		CL_GetVMGLConfig(VMAV(1, vmglconfig_t));
@@ -984,19 +983,19 @@ intptr_t CL_CgameSystemCalls(intptr_t *args) {
 	  return 0;
 
 	case CG_R_REMAP_SHADER:
-		re.RemapShader( VMAS(1), VMAS(2), VMAS(3) );
+		re->RemapShader( VMAS(1), VMAS(2), VMAS(3) );
 		return 0;
 
 	case CG_R_GET_LIGHT_STYLE:
-		re.GetLightStyle(args[1], VMAP(2, byte, 4));
+		re->GetLightStyle(args[1], VMAP(2, byte, 4));
 		return 0;
 
 	case CG_R_SET_LIGHT_STYLE:
-		re.SetLightStyle(args[1], args[2]);
+		re->SetLightStyle(args[1], args[2]);
 		return 0;
 
 	case CG_R_GET_BMODEL_VERTS:
-		re.GetBModelVerts( args[1], VMAP(2, vec3_t, 4), VMAP(3, vec_t, 3) );
+		re->GetBModelVerts( args[1], VMAP(2, vec3_t, 4), VMAP(3, vec_t, 3) );
 		return 0;
 
 	case CG_FX_ADDLINE:
@@ -1018,9 +1017,9 @@ intptr_t CL_CgameSystemCalls(intptr_t *args) {
 		return getCameraInfo(args[1], VMA(2), VMA(3));
 */
 	case CG_GET_ENTITY_TOKEN:
-		return re.GetEntityToken( VMAP(1, char, args[2]), args[2] );
+		return re->GetEntityToken( VMAP(1, char, args[2]), args[2] );
 	case CG_R_INPVS:
-		return re.inPVS( VMAP(1, const vec_t, 3), VMAP(2, const vec_t, 3) );
+		return re->inPVS( VMAP(1, const vec_t, 3), VMAP(2, const vec_t, 3) );
 
 #ifndef DEBUG_DISABLEFXCALLS
 	case CG_FX_REGISTER_EFFECT:
@@ -1165,41 +1164,42 @@ Ghoul2 Insert Start
 */
 
 	case CG_G2_LISTSURFACES:
-		// G2API_ListSurfaces( (CGhoul2Info *) args[1] );
-		G2API_ListSurfaces((g2handle_t)args[1], args[2]);
+		// re->G2API_ListSurfaces( (CGhoul2Info *) args[1] );
+		re->G2API_ListSurfaces((g2handle_t)args[1], args[2]);
 		return 0;
 
 	case CG_G2_LISTBONES:
-		// G2API_ListBones( (CGhoul2Info *) args[1], args[2]);
-		G2API_ListBones((g2handle_t)args[1], args[2], args[3]);
+		// re->G2API_ListBones( (CGhoul2Info *) args[1], args[2]);
+		re->G2API_ListBones((g2handle_t)args[1], args[2], args[3]);
 		return 0;
 
 	case CG_G2_HAVEWEGHOULMODELS:
-		return G2API_HaveWeGhoul2Models((g2handle_t)args[1]);
+		return re->G2API_HaveWeGhoul2Models((g2handle_t)args[1]);
 
 	case CG_G2_SETMODELS:
-		// G2API_SetGhoul2ModelIndexes((g2handle_t)args[1], (qhandle_t *)VMA(2), (qhandle_t *)VMA(3));
+		// re->G2API_SetGhoul2ModelIndexes((g2handle_t)args[1], (qhandle_t *)VMA(2), (qhandle_t *)VMA(3));
 		return 0;
 
 	case CG_G2_GETBOLT:
-		return G2API_GetBoltMatrix((g2handle_t)args[1], args[2], args[3], VMAV(4, mdxaBone_t), VMAP(5, const vec_t, 3), VMAP(6, const vec_t, 3), args[7], VMAA(8, const qhandle_t, G2API_GetMaxModelIndex(false) + 1), VMAP(9, const vec_t, 3));
+		return re->G2API_GetBoltMatrix((g2handle_t)args[1], args[2], args[3], VMAV(4, mdxaBone_t), VMAP(5, const vec_t, 3), VMAP(6, const vec_t, 3), args[7], VMAA(8, const qhandle_t, re->G2API_GetMaxModelIndex(false) + 1), VMAP(9, const vec_t, 3));
 
 	case CG_G2_GETBOLT_NOREC:
-		gG2_GBMNoReconstruct = qtrue;
-		return G2API_GetBoltMatrix((g2handle_t)args[1], args[2], args[3], VMAV(4, mdxaBone_t), VMAP(5, const vec_t, 3), VMAP(6, const vec_t, 3), args[7], VMAA(8, const qhandle_t, G2API_GetMaxModelIndex(false) + 1), VMAP(9, const vec_t, 3));
+		re->G2API_BoltMatrixReconstruction( qfalse );
+		return re->G2API_GetBoltMatrix((g2handle_t)args[1], args[2], args[3], VMAV(4, mdxaBone_t), VMAP(5, const vec_t, 3), VMAP(6, const vec_t, 3), args[7], VMAA(8, const qhandle_t, re->G2API_GetMaxModelIndex(false) + 1), VMAP(9, const vec_t, 3));
 
 	case CG_G2_GETBOLT_NOREC_NOROT:
-		gG2_GBMNoReconstruct = qtrue;
-		gG2_GBMUseSPMethod = qtrue;
-		return G2API_GetBoltMatrix((g2handle_t)args[1], args[2], args[3], VMAV(4, mdxaBone_t), VMAP(5, const vec_t, 3), VMAP(6, const vec_t, 3), args[7], VMAA(8, const qhandle_t, G2API_GetMaxModelIndex(false) + 1), VMAP(9, const vec_t, 3));
+		re->G2API_BoltMatrixReconstruction( qfalse );
+		//Yeah, this was probably BAD.  ^ ???, commented on openjk
+		re->G2API_BoltMatrixSPMethod( qtrue );
+		return re->G2API_GetBoltMatrix((g2handle_t)args[1], args[2], args[3], VMAV(4, mdxaBone_t), VMAP(5, const vec_t, 3), VMAP(6, const vec_t, 3), args[7], VMAA(8, const qhandle_t, re->G2API_GetMaxModelIndex(false) + 1), VMAP(9, const vec_t, 3));
 
 	case CG_G2_INITGHOUL2MODEL:
-		return	G2API_InitGhoul2Model(VMAV(1, g2handle_t), VMAS(2), args[3], (qhandle_t) args[4],
+		return	re->G2API_InitGhoul2Model(VMAV(1, g2handle_t), VMAS(2), args[3], (qhandle_t) args[4],
 			(qhandle_t) args[5], args[6], args[7]);
 
 	case CG_G2_COLLISIONDETECT:
 #ifdef G2_COLLISION_ENABLED
-		G2API_CollisionDetect(VMAA(1, CollisionRecord_t, MAX_G2_COLLISIONS),
+		re->G2API_CollisionDetect(VMAA(1, CollisionRecord_t, MAX_G2_COLLISIONS),
 								   (g2handle_t)args[2],
 								   VMAP(3, const vec_t, 3),
 								   VMAP(4, const vec_t, 3),
@@ -1216,22 +1216,22 @@ Ghoul2 Insert Start
 		return 0;
 
 	case CG_G2_ANGLEOVERRIDE:
-		return G2API_SetBoneAngles((g2handle_t)args[1], args[2], VMAS(3), VMAP(4, vec_t, 3), args[5],
+		return re->G2API_SetBoneAngles((g2handle_t)args[1], args[2], VMAS(3), VMAP(4, vec_t, 3), args[5],
 							 (const Eorientations) args[6], (const Eorientations) args[7], (const Eorientations) args[8],
 							 VMAA(9, qhandle_t, args[2] + 1), args[10], args[11] );
 
 	case CG_G2_CLEANMODELS:
-		G2API_CleanGhoul2Models(VMAV(1, g2handle_t));
+		re->G2API_CleanGhoul2Models(VMAV(1, g2handle_t));
 		return 0;
 
 	case CG_G2_PLAYANIM:
-		return G2API_SetBoneAnim((g2handle_t)args[1], args[2], VMAS(3), args[4], args[5],
+		return re->G2API_SetBoneAnim((g2handle_t)args[1], args[2], VMAS(3), args[4], args[5],
 								args[6], VMF(7), args[8], VMF(9), args[10]);
 	case CG_G2_GETGLANAME:
-		//	return (int)G2API_GetGLAName(*((CGhoul2Info_v *)VMA(1)), args[2]);
+		//	return (int)re->G2API_GetGLAName(*((CGhoul2Info_v *)VMA(1)), args[2]);
 		{
 			char *local;
-			local = G2API_GetGLAName((g2handle_t)args[1], args[2]);
+			local = re->G2API_GetGLAName((g2handle_t)args[1], args[2]);
 			if (local)
 			{
 				char *point = VMAP(3, char, strlen(local) + 1);
@@ -1241,46 +1241,46 @@ Ghoul2 Insert Start
 		return 0;
 
 	case CG_G2_COPYGHOUL2INSTANCE:
-		return G2API_CopyGhoul2Instance((g2handle_t)args[1], (g2handle_t)args[2], args[3]);
+		return re->G2API_CopyGhoul2Instance((g2handle_t)args[1], (g2handle_t)args[2], args[3]);
 
 	case CG_G2_COPYSPECIFICGHOUL2MODEL:
-		G2API_CopySpecificG2Model((g2handle_t)args[1], args[2], (g2handle_t)args[3], args[4]);
+		re->G2API_CopySpecificG2Model((g2handle_t)args[1], args[2], (g2handle_t)args[3], args[4]);
 		return 0;
 
 	case CG_G2_DUPLICATEGHOUL2INSTANCE:
-		G2API_DuplicateGhoul2Instance((g2handle_t)args[1], VMAV(2, g2handle_t));
+		re->G2API_DuplicateGhoul2Instance((g2handle_t)args[1], VMAV(2, g2handle_t));
 		return 0;
 
 	case CG_G2_HASGHOUL2MODELONINDEX:
-		return G2API_HasGhoul2ModelOnIndex(VMAV(1, const g2handle_t), args[2]);
+		return re->G2API_HasGhoul2ModelOnIndex(VMAV(1, const g2handle_t), args[2]);
 
 	case CG_G2_REMOVEGHOUL2MODEL:
-		return G2API_RemoveGhoul2Model(VMAV(1, g2handle_t), args[2]);
+		return re->G2API_RemoveGhoul2Model(VMAV(1, g2handle_t), args[2]);
 
 	case CG_G2_ADDBOLT:
-		return G2API_AddBolt((g2handle_t)args[1], args[2], VMAS(3));
+		return re->G2API_AddBolt((g2handle_t)args[1], args[2], VMAS(3));
 
 //	case CG_G2_REMOVEBOLT:
-//		return G2API_RemoveBolt(*((CGhoul2Info_v *)VMA(1)), args[2]);
+//		return re->G2API_RemoveBolt(*((CGhoul2Info_v *)VMA(1)), args[2]);
 
 	case CG_G2_SETBOLTON:
-		G2API_SetBoltInfo((g2handle_t)args[1], args[2], args[3]);
+		re->G2API_SetBoltInfo((g2handle_t)args[1], args[2], args[3]);
 		return 0;
 /*
 Ghoul2 Insert End
 */
 	case CG_G2_GIVEMEVECTORFROMMATRIX:
-		G2API_GiveMeVectorFromMatrix(VMAV(1, const mdxaBone_t), (Eorientations)(args[2]), VMAP(3, vec_t, 3));
+		re->G2API_GiveMeVectorFromMatrix(VMAV(1, const mdxaBone_t), (Eorientations)(args[2]), VMAP(3, vec_t, 3));
 		return 0;
 
 	case CG_G2_SETROOTSURFACE:
-		return G2API_SetRootSurface((g2handle_t)args[1], args[2], VMAS(3));
+		return re->G2API_SetRootSurface((g2handle_t)args[1], args[2], VMAS(3));
 
 	case CG_G2_SETSURFACEONOFF:
-		return G2API_SetSurfaceOnOff((g2handle_t)args[1], VMAS(2), /*(const int)VMA(3)*/args[3]);
+		return re->G2API_SetSurfaceOnOff((g2handle_t)args[1], VMAS(2), /*(const int)VMA(3)*/args[3]);
 
 	case CG_G2_SETNEWORIGIN:
-		return G2API_SetNewOrigin((g2handle_t)args[1], /*(const int)VMA(2)*/args[2]);
+		return re->G2API_SetNewOrigin((g2handle_t)args[1], /*(const int)VMA(2)*/args[2]);
 
 	case CG_SP_GETSTRINGTEXTSTRING:
 		return SP_VMGetStringText(VMAS(1), VMAP(2, char, args[3]), args[3]);
@@ -1306,7 +1306,7 @@ Ghoul2 Insert End
 	if (VM_MVAPILevel(cgvm) >= 3) {
 		switch (args[0]) {
 		case CG_MVAPI_R_ADDREFENTITYTOSCENE2:
-			re.AddRefEntityToScene(VMAV(1, const refEntity_t), qtrue);
+			re->AddRefEntityToScene(VMAV(1, const refEntity_t), qtrue);
 			return 0;
 		case CG_MVAPI_SETVIRTUALSCREEN:
 			CL_CgameSetVirtualScreen(VMF(1), VMF(2));
@@ -1399,7 +1399,7 @@ void CL_InitCGame( void ) {
 
 	// have the renderer touch all its images, so they are present
 	// on the card even if the driver does deferred loading
-	re.EndRegistration();
+	re->EndRegistration();
 
 	// make sure everything is paged in
 //	if (!Sys_LowPhysicalMemory())
@@ -1528,14 +1528,14 @@ void CL_AdjustTimeDelta( void ) {
 CL_FirstSnapshot
 ==================
 */
-extern void RE_RegisterMedia_LevelLoadEnd(void);
+//extern void RE_RegisterMedia_LevelLoadEnd(void);
 void CL_FirstSnapshot( void ) {
 	// ignore snapshots that don't have entities
 	if ( cl.snap.snapFlags & SNAPFLAG_NOT_ACTIVE ) {
 		return;
 	}
 
-	RE_RegisterMedia_LevelLoadEnd();
+	re->RegisterMedia_LevelLoadEnd();
 
 	cls.state = CA_ACTIVE;
 

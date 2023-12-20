@@ -104,7 +104,7 @@ public:
 	// Physics/collision
 	inline	void	Trace( trace_t &tr, const vec3_t start, const vec3_t min, const vec3_t max, const vec3_t end, int skipEntNum, int flags )
 	{
-		//VM_Call( cgvm, CG_TRACE, tr, start, min, max, end, skipEntNum, flags );
+		//VM_Call( cgvm, CG_TRACE, tr, start, min, max, end, skipEAddRefEntityToScenentNum, flags );
 		TCGTrace		*td = (TCGTrace *)cl.mSharedMemory;
 
 		if ( !min )
@@ -131,32 +131,32 @@ public:
 #ifdef _DEBUG
 		mMainRefs++;
 #endif
-		re.AddRefEntityToScene( ent, qtrue );
+		re->AddRefEntityToScene( ent, qtrue );
 	}
 	inline	void	AddFxToScene( miniRefEntity_t *ent )
 	{
 #ifdef _DEBUG
 		mMiniRefs++;
 #endif
-		re.AddMiniRefEntityToScene( ent );
+		re->AddMiniRefEntityToScene( ent );
 	}
 	inline	void	AddLightToScene( vec3_t org, float radius, float red, float green, float blue )
 	{
-		re.AddLightToScene(	org, radius, red, green, blue );
+		re->AddLightToScene(	org, radius, red, green, blue );
 	}
 
 	inline	int		RegisterShader( const char *shader )
 	{
-		return re.RegisterShader( shader );
+		return re->RegisterShader( shader );
 	}
 	inline	int		RegisterModel( const char *model )
 	{
-		return re.RegisterModel( model );
+		return re->RegisterModel( model );
 	}
 
 	inline	void	AddPolyToScene( int shader, int count, polyVert_t *verts )
 	{
-		re.AddPolyToScene( shader, count, verts, 1 );
+		re->AddPolyToScene( shader, count, verts, 1 );
 	}
 
 	void	CameraShake( vec3_t origin, float intensity, int radius, int time );

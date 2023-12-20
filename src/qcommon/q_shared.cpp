@@ -63,6 +63,21 @@ char *COM_SkipPath(char *pathname) {
 
 /*
 ============
+COM_GetExtension
+============
+*/
+const char *COM_GetExtension( const char *name )
+{
+	const char *dot = strrchr(name, '.'), *slash;
+	if (dot && (!(slash = strrchr(name, '/')) || slash < dot))
+		return dot + 1;
+	else
+		return "";
+
+}
+
+/*
+============
 COM_StripExtension
 
 R_RemapShader exploit
@@ -71,6 +86,7 @@ http://ioqsrc.vampireducks.com/d8/dbe/q__shared_8c-source.html#l00061
 ============
 */
 void COM_StripExtension(const char *in, char *out, int destsize) {
+#if 0
 	int length;
 	assert(out != in);
 	Q_strncpyz(out, in, destsize);
@@ -82,8 +98,42 @@ void COM_StripExtension(const char *in, char *out, int destsize) {
 	}
 	if (length > 0)
 		out[length] = 0;
+#endif
+	// todo
+	const char *dot = strrchr(in, '.'), *slash;
+	if (dot && (!(slash = strrchr(in, '/')) || slash < dot))
+		destsize = (destsize < dot-in+1 ? destsize : dot-in+1);
+
+	if ( in == out && destsize > 1 )
+		out[destsize-1] = '\0';
+	else
+		Q_strncpyz(out, in, destsize);
 }
 
+/*
+============
+COM_CompareExtension
+
+string compare the end of the strings and return qtrue if strings match
+============
+*/
+qboolean COM_CompareExtension(const char *in, const char *ext)
+{
+	int inlen, extlen;
+
+	inlen = strlen(in);
+	extlen = strlen(ext);
+
+	if(extlen <= inlen)
+	{
+		in += inlen - extlen;
+
+		if(!Q_stricmp(in, ext))
+			return qtrue;
+	}
+
+	return qfalse;
+}
 
 /*
 ==================
@@ -677,6 +727,27 @@ int Q_isalnum(int c) {
 
 int Q_isascii(int c) {
 	return (0 <= c && c <= 127);
+}
+
+qboolean Q_isanumber( const char *s )
+{
+	char *p;
+	double ret;
+
+	if( *s == '\0' )
+		return qfalse;
+
+	ret = strtod( s, &p );
+
+	if ( ret == HUGE_VAL || errno == ERANGE )
+		return qfalse;
+
+	return (qboolean)(*p == '\0');
+}
+
+qboolean Q_isintegral( float f )
+{
+	return (qboolean)( (int)f == f );
 }
 
 char* Q_strrchr(const char* string, int c) {

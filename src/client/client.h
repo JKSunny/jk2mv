@@ -2,7 +2,7 @@
 
 #include "../qcommon/qcommon.h"
 #include "../qcommon/cm_public.h"
-#include "../renderer/tr_public.h"
+#include "../rd-common/tr_public.h"
 #include "../menu/ui_public.h"
 #include "keys.h"
 #include "../cgame/cg_public.h"
@@ -406,7 +406,7 @@ extern	clientStatic_t		cls;
 
 extern	vm_t			*cgvm;	// interface to cgame dll or vm
 extern	vm_t			*uivm;	// interface to ui dll or vm
-extern	refexport_t		re;		// interface to refresh .dll
+extern	refexport_t		*re;	// interface to refresh .dll
 
 
 //
@@ -467,7 +467,7 @@ extern	cvar_t	*cl_autoDemoFormat;
 
 void CL_Init (void);
 void CL_FlushMemory( qboolean disconnecting );
-void CL_ShutdownAll(void);
+void CL_ShutdownAll( qboolean shutdownRef );
 void CL_AddReliableCommand( const char *cmd );
 
 qboolean CL_ServerVersionIs103 (const char *versionstr);
@@ -496,7 +496,7 @@ void CL_GetPingInfo( int n, char *buf, int buflen );
 void CL_ClearPing( int n );
 int CL_GetPingQueueCount( void );
 
-void CL_ShutdownRef( void );
+void CL_ShutdownRef( qboolean restarting );
 void CL_InitRef( void );
 void CL_UpdateRefConfig( void );
 

@@ -588,9 +588,9 @@ void CL_TakeVideoFrame( void )
 	}
 
 	if ( afd.motionJpeg ) {
-		size = re.CaptureFrameJPEG( afd.frameBuffer, afd.frameBufferSize, cl_aviMotionJpegQuality->integer );
+		size = re->CaptureFrameJPEG( afd.frameBuffer, afd.frameBufferSize, cl_aviMotionJpegQuality->integer );
 	} else {
-		size = re.CaptureFrameRaw( afd.frameBuffer, afd.frameBufferSize, AVI_LINE_PADDING );
+		size = re->CaptureFrameRaw( afd.frameBuffer, afd.frameBufferSize, AVI_LINE_PADDING );
 	}
 
 	CL_WriteAVIVideoFrame( afd.frameBuffer, size );

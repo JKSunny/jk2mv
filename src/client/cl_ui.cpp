@@ -10,7 +10,7 @@ Ghoul2 Insert Start
 */
 
 #if !defined(G2_H_INC)
-	#include "../ghoul2/G2_local.h"
+	#include "../ghoul2/G2.h"
 #endif
 
 /*
@@ -847,44 +847,44 @@ intptr_t CL_UISystemCalls(intptr_t *args) {
 		return FS_GetFileList( VMAS(1), VMAS(2), VMAP(3, char, args[4]), args[4] );
 
 	case UI_R_REGISTERMODEL:
-		return re.RegisterModel( VMAS(1) );
+		return re->RegisterModel( VMAS(1) );
 
 	case UI_R_REGISTERSKIN:
-		return re.RegisterSkin( VMAS(1) );
+		return re->RegisterSkin( VMAS(1) );
 
 	case UI_R_REGISTERSHADERNOMIP:
-		return re.RegisterShaderNoMip( VMAS(1) );
+		return re->RegisterShaderNoMip( VMAS(1) );
 
 	case UI_R_CLEARSCENE:
-		re.ClearScene();
+		re->ClearScene();
 		return 0;
 
 	case UI_R_ADDREFENTITYTOSCENE:
-		re.AddRefEntityToScene( VMAV(1, const refEntity_t), qfalse );
+		re->AddRefEntityToScene( VMAV(1, const refEntity_t), qfalse );
 		return 0;
 
 	case UI_R_ADDPOLYTOSCENE:
-		re.AddPolyToScene( args[1], args[2], VMAA(3, const polyVert_t, args[2]), 1 );
+		re->AddPolyToScene( args[1], args[2], VMAA(3, const polyVert_t, args[2]), 1 );
 		return 0;
 
 	case UI_R_ADDLIGHTTOSCENE:
-		re.AddLightToScene( VMAP(1, const vec_t, 3), VMF(2), VMF(3), VMF(4), VMF(5) );
+		re->AddLightToScene( VMAP(1, const vec_t, 3), VMF(2), VMF(3), VMF(4), VMF(5) );
 		return 0;
 
 	case UI_R_RENDERSCENE:
-		re.RenderScene( VMAV(1, const refdef_t) );
+		re->RenderScene( VMAV(1, const refdef_t) );
 		return 0;
 
 	case UI_R_SETCOLOR:
-		re.SetColor( VMAP(1, const vec_t, 4) );
+		re->SetColor( VMAP(1, const vec_t, 4) );
 		return 0;
 
 	case UI_R_DRAWSTRETCHPIC:
-		re.DrawStretchPic( VMF(1), VMF(2), VMF(3), VMF(4), VMF(5), VMF(6), VMF(7), VMF(8), args[9], cls.uixadj, cls.uiyadj );
+		re->DrawStretchPic( VMF(1), VMF(2), VMF(3), VMF(4), VMF(5), VMF(6), VMF(7), VMF(8), args[9], cls.uixadj, cls.uiyadj );
 		return 0;
 
 	case UI_R_MODELBOUNDS:
-		re.ModelBounds( args[1], VMAP(2, vec_t, 3), VMAP(3, vec_t, 3) );
+		re->ModelBounds( args[1], VMAP(2, vec_t, 3), VMAP(3, vec_t, 3) );
 		return 0;
 
 	case UI_UPDATESCREEN:
@@ -892,7 +892,7 @@ intptr_t CL_UISystemCalls(intptr_t *args) {
 		return 0;
 
 	case UI_CM_LERPTAG:
-		re.LerpTag( VMAV(1, orientation_t), args[2], args[3], args[4], VMF(5), VMAS(6) );
+		re->LerpTag( VMAV(1, orientation_t), args[2], args[3], args[4], VMF(5), VMAS(6) );
 		return 0;
 
 	case UI_S_REGISTERSOUND:
@@ -1018,29 +1018,29 @@ intptr_t CL_UISystemCalls(intptr_t *args) {
 		return Hunk_MemoryRemaining();
 
 	case UI_R_REGISTERFONT:
-		return re.RegisterFont( VMAS(1) );
+		return re->RegisterFont( VMAS(1) );
 
 	case UI_R_FONT_STRLENPIXELS:
-		return re.Font_StrLenPixels( VMAS(1), args[2], VMF(3), cls.uixadj, cls.uiyadj );
+		return re->Font_StrLenPixels( VMAS(1), args[2], VMF(3), cls.uixadj, cls.uiyadj );
 
 	case UI_R_FONT_STRLENCHARS:
-		return re.Font_StrLenChars( VMAS(1) );
+		return re->Font_StrLenChars( VMAS(1) );
 
 	case UI_R_FONT_STRHEIGHTPIXELS:
-		return re.Font_HeightPixels( args[1], VMF(2), cls.uixadj, cls.uiyadj );
+		return re->Font_HeightPixels( args[1], VMF(2), cls.uixadj, cls.uiyadj );
 
 	case UI_R_FONT_DRAWSTRING:
-		re.Font_DrawString( args[1], args[2], VMAS(3), VMAP(4, const vec_t, 4), args[5], args[6], VMF(7), cls.uixadj, cls.uiyadj );
+		re->Font_DrawString( args[1], args[2], VMAS(3), VMAP(4, const vec_t, 4), args[5], args[6], VMF(7), cls.uixadj, cls.uiyadj );
 		return 0;
 
 	case UI_LANGUAGE_ISASIAN:
-		return re.Language_IsAsian();
+		return re->Language_IsAsian();
 
 	case UI_LANGUAGE_USESSPACES:
-		return re.Language_UsesSpaces();
+		return re->Language_UsesSpaces();
 
 	case UI_ANYLANGUAGE_READCHARFROMSTRING:
-		return re.AnyLanguage_ReadCharFromString( VMAS(1), VMAV(2, int), VMAV(3, qboolean) );
+		return re->AnyLanguage_ReadCharFromString( VMAS(1), VMAV(2, int), VMAV(3, qboolean) );
 
 	case UI_MEMSET:
 		Com_Memset( VMAP(1, char, args[3]), args[2], args[3] );
@@ -1116,7 +1116,7 @@ intptr_t CL_UISystemCalls(intptr_t *args) {
 	  return 0;
 
 	case UI_R_REMAP_SHADER:
-		re.RemapShader( VMAS(1), VMAS(2), VMAS(3) );
+		re->RemapShader( VMAS(1), VMAS(2), VMAS(3) );
 		return 0;
 
 	case UI_SP_REGISTER:
@@ -1133,7 +1133,7 @@ intptr_t CL_UISystemCalls(intptr_t *args) {
 Ghoul2 Insert Start
 */
 	case UI_G2_ANGLEOVERRIDE:
-		return G2API_SetBoneAngles((g2handle_t)args[1], args[2], VMAS(3), VMAP(4, const vec_t, 3), args[5],
+		return re->G2API_SetBoneAngles((g2handle_t)args[1], args[2], VMAS(3), VMAP(4, const vec_t, 3), args[5],
 							 (const Eorientations) args[6], (const Eorientations) args[7], (const Eorientations) args[8],
 							 VMAA(9, qhandle_t, args[2] + 1), args[10], args[11] );
 /*
@@ -1147,7 +1147,7 @@ Ghoul2 Insert End
 	if (VM_MVAPILevel(uivm) >= 3) {
 		switch (args[0]) {
 		case UI_MVAPI_R_ADDREFENTITYTOSCENE2:
-			re.AddRefEntityToScene(VMAV(1, const refEntity_t), qtrue);
+			re->AddRefEntityToScene(VMAV(1, const refEntity_t), qtrue);
 			return 0;
 		case UI_MVAPI_SETVIRTUALSCREEN:
 			CL_UISetVirtualScreen(VMF(1), VMF(2));

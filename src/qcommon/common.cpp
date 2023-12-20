@@ -977,8 +977,7 @@ void *Z_Malloc(int iSize, memtag_t eTag, qboolean bZeroit /* = qfalse */)
 #ifndef DEDICATED
 			// ditch any image_t's (and associated GL memory) not used on this level...
 			//
-			extern qboolean RE_RegisterImages_LevelLoadEnd(void);
-			if (RE_RegisterImages_LevelLoadEnd())
+			if (re->RegisterImages_LevelLoadEnd())
 			{
 				gbMemFreeupOccured = qtrue;
 				continue;		// we've dropped at least one image, so try again with the malloc
@@ -987,8 +986,7 @@ void *Z_Malloc(int iSize, memtag_t eTag, qboolean bZeroit /* = qfalse */)
 
 			// ditch the model-binaries cache...  (must be getting desperate here!)
 			//
-			extern qboolean RE_RegisterModels_LevelLoadEnd(qboolean bDeleteEverythingNotUsedThisLevel);
-			if (RE_RegisterModels_LevelLoadEnd(qtrue))
+			if (re->RegisterModels_LevelLoadEnd(qtrue))
 			{
 				gbMemFreeupOccured = qtrue;
 				continue;
@@ -1075,6 +1073,37 @@ void *Z_Malloc(int iSize, memtag_t eTag, qboolean bZeroit /* = qfalse */)
 	return pvReturnMem;
 }
 
+// used during model cacheing to save an extra malloc, lets us morph the disk-load buffer then
+//	just not fs_freefile() it afterwards.
+//
+void Z_MorphMallocTag( void *pvAddress, memtag_t eDesiredTag )
+{
+	zoneHeader_t *pMemory = ((zoneHeader_t *)pvAddress) - 1;
+
+	if (pMemory->iMagic != ZONE_MAGIC)
+	{
+		Com_Error(ERR_FATAL, "Z_MorphMallocTag(): Not a valid zone header!");
+		return;	// won't get here
+	}
+
+	// DEC existing tag stats...
+	//
+//	TheZone.Stats.iCurrent	- unchanged
+//	TheZone.Stats.iCount	- unchanged
+	TheZone.Stats.iSizesPerTag	[pMemory->eTag] -= pMemory->iSize;
+	TheZone.Stats.iCountsPerTag	[pMemory->eTag]--;
+
+	// morph...
+	//
+	pMemory->eTag = eDesiredTag;
+
+	// INC new tag stats...
+	//
+//	TheZone.Stats.iCurrent	- unchanged
+//	TheZone.Stats.iCount	- unchanged
+	TheZone.Stats.iSizesPerTag	[pMemory->eTag] += pMemory->iSize;
+	TheZone.Stats.iCountsPerTag	[pMemory->eTag]++;
+}
 
 static void Zone_FreeBlock(zoneHeader_t *pMemory)
 {

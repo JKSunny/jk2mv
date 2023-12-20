@@ -109,11 +109,6 @@ char *Sys_DefaultAssetsPathJKA() {
 #endif
 }
 
-char *Sys_DefaultInstallPath(void)
-{
-	return Sys_Cwd();
-}
-
 void Sys_Sleep(int msec) {
 	if (msec == 0)
 		return;
@@ -301,93 +296,6 @@ char *Sys_Cwd(void) {
 	static char cwd[MAX_OSPATH];
 	GetCurrentDirectoryA(sizeof(cwd), cwd);
 	return cwd;
-}
-
-/*
-=================
-Sys_UnloadModuleLibrary
-=================
-*/
-void Sys_UnloadModuleLibrary(void *dllHandle) {
-	if (!dllHandle) {
-		return;
-	}
-
-	if (!FreeLibrary((HMODULE)dllHandle)) {
-		Com_Error(ERR_FATAL, "Sys_UnloadDll FreeLibrary failed");
-	}
-}
-
-/*
-=================
-Sys_LoadModuleLibrary
-
-Used to load a module (jk2mpgame, cgame, ui) dll
-=================
-*/
-void *Sys_LoadModuleLibrary(const char *name, qboolean mvOverride, VM_EntryPoint_t *entryPoint, intptr_t(QDECL *systemcalls)(intptr_t, ...)) {
-	HMODULE	libHandle;
-	void	(QDECL *dllEntry)(intptr_t(QDECL *syscallptr)(intptr_t, ...));
-	const char	*path, *filePath;
-	char	filename[MAX_QPATH];
-
-	Com_sprintf(filename, sizeof(filename), "%s_" ARCH_STRING "." LIBRARY_EXTENSION, name);
-
-	if (!mvOverride) {
-		path = Cvar_VariableString("fs_basepath");
-		filePath = FS_BuildOSPath(path, NULL, filename);
-
-		Com_DPrintf("Loading module: %s...", filePath);
-		libHandle = LoadLibraryA(filePath);
-		if (!libHandle) {
-			Com_DPrintf(" failed!\n");
-			path = Cvar_VariableString("fs_homepath");
-			filePath = FS_BuildOSPath(path, NULL, filename);
-
-			Com_DPrintf("Loading module: %s...", filePath);
-			libHandle = LoadLibraryA(filePath);
-			if (!libHandle) {
-				Com_DPrintf(" failed!\n");
-				return NULL;
-			} else {
-				Com_DPrintf(" success!\n");
-			}
-		} else {
-			Com_DPrintf(" success!\n");
-		}
-	} else {
-		char dllPath[MAX_PATH];
-		path = Cvar_VariableString("fs_basepath");
-		Com_sprintf(dllPath, sizeof(dllPath), "%s\\%s", path, filename);
-
-		Com_DPrintf("Loading module: %s...", dllPath);
-		libHandle = LoadLibraryA(dllPath);
-		if (!libHandle) {
-			Com_DPrintf(" failed!\n");
-			return NULL;
-		} else {
-			Com_DPrintf(" success!\n");
-		}
-	}
-
-	dllEntry = (void (QDECL *)(intptr_t(QDECL *)(intptr_t, ...)))GetProcAddress(libHandle, "dllEntry");
-	*entryPoint = (VM_EntryPoint_t)GetProcAddress(libHandle, "vmMain");
-
-	if (!*entryPoint) {
-		Com_DPrintf("Could not find vmMain in %s\n", filename);
-		FreeLibrary(libHandle);
-		return NULL;
-	}
-
-	if (!dllEntry) {
-		Com_DPrintf("Could not find dllEntry in %s\n", filename);
-		FreeLibrary(libHandle);
-		return NULL;
-	}
-
-	dllEntry(systemcalls);
-
-	return libHandle;
 }
 
 /*

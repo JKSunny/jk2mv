@@ -25,8 +25,8 @@ void SCR_DrawNamedPic( float x, float y, float width, float height, const char *
 
 	assert( width != 0 );
 
-	hShader = re.RegisterShader( picname );
-	re.DrawStretchPic( x, y, width, height, 0, 0, 1, 1, hShader, 1, 1 );
+	hShader = re->RegisterShader( picname );
+	re->DrawStretchPic( x, y, width, height, 0, 0, 1, 1, hShader, 1, 1 );
 }
 
 
@@ -38,11 +38,11 @@ Coordinates are 640*480 virtual values
 =================
 */
 void SCR_FillRect( float x, float y, float width, float height, const float *color ) {
-	re.SetColor( color );
+	re->SetColor( color );
 
-	re.DrawStretchPic( x, y, width, height, 0, 0, 0, 0, cls.whiteShader, 1, 1 );
+	re->DrawStretchPic( x, y, width, height, 0, 0, 0, 0, cls.whiteShader, 1, 1 );
 
-	re.SetColor( NULL );
+	re->SetColor( NULL );
 }
 
 
@@ -54,7 +54,7 @@ Coordinates are 640*480 virtual values
 =================
 */
 void SCR_DrawPic( float x, float y, float width, float height, qhandle_t hShader ) {
-	re.DrawStretchPic( x, y, width, height, 0, 0, 1, 1, hShader, 1, 1 );
+	re->DrawStretchPic( x, y, width, height, 0, 0, 1, 1, hShader, 1, 1 );
 }
 
 
@@ -93,7 +93,7 @@ static void SCR_DrawChar( int x, int y, float size, int ch ) {
 	size = 0.03125;
 	size2 = 0.0625;
 
-	re.DrawStretchPic( ax, ay, aw, ah,
+	re->DrawStretchPic( ax, ay, aw, ah,
 					   fcol, frow,
 					   fcol + size, frow + size2,
 					   cls.charSetShader, 1, 1 );
@@ -133,7 +133,7 @@ void SCR_DrawSmallChar( int x, int y, int ch ) {
 #endif
 	size2 = 0.0625;
 
-	re.DrawStretchPic( x, y, con.charWidth, con.charHeight,
+	re->DrawStretchPic( x, y, con.charWidth, con.charHeight,
 					   fcol, frow,
 					   fcol + size, frow + size2,
 					   cls.charSetShader,
@@ -161,7 +161,7 @@ static void SCR_DrawStringExt( int x, int y, float size, const char *string, con
 	// draw the drop shadow
 	color[0] = color[1] = color[2] = 0;
 	color[3] = setColor[3];
-	re.SetColor( color );
+	re->SetColor( color );
 	s = string;
 	xx = x;
 	while ( *s ) {
@@ -178,13 +178,13 @@ static void SCR_DrawStringExt( int x, int y, float size, const char *string, con
 	// draw the colored text
 	s = string;
 	xx = x;
-	re.SetColor( setColor );
+	re->SetColor( setColor );
 	while ( *s ) {
 		if ( Q_IsColorString( s ) || (use102color && Q_IsColorString_1_02( s ))) {
 			if ( !forceColor ) {
 				Com_Memcpy( color, g_color_table[ColorIndex(*(s+1))], sizeof( color ) );
 				color[3] = setColor[3];
-				re.SetColor( color );
+				re->SetColor( color );
 			}
 			s += 2;
 			continue;
@@ -193,7 +193,7 @@ static void SCR_DrawStringExt( int x, int y, float size, const char *string, con
 		xx += size;
 		s++;
 	}
-	re.SetColor( NULL );
+	re->SetColor( NULL );
 }
 
 
@@ -230,13 +230,13 @@ void SCR_DrawSmallStringExt( int x, int y, const char *string, const vec4_t setC
 	// draw the colored text
 	s = string;
 	xx = x;
-	re.SetColor( setColor );
+	re->SetColor( setColor );
 	while ( *s ) {
 		if ( Q_IsColorString( s ) || (use102color && Q_IsColorString_1_02( s ))) {
 			if ( !forceColor ) {
 				Com_Memcpy( color, g_color_table[ColorIndex(*(s+1))], sizeof( color ) );
 				color[3] = setColor[3];
-				re.SetColor( color );
+				re->SetColor( color );
 			}
 			s += 2;
 			continue;
@@ -245,7 +245,7 @@ void SCR_DrawSmallStringExt( int x, int y, const char *string, const vec4_t setC
 		xx += con.charWidth;
 		s++;
 	}
-	re.SetColor( NULL );
+	re->SetColor( NULL );
 }
 
 
@@ -299,8 +299,8 @@ void SCR_DrawDemoRecording( void ) {
 
 	if (cl_drawRecording->integer >= 2 && cls.recordingShader) {
 		static const float width = 60.0f, height = 15.0f;
-		re.SetColor(NULL);
-		re.DrawStretchPic(0, cls.glconfig.vidHeight - height, width, height,
+		re->SetColor(NULL);
+		re->DrawStretchPic(0, cls.glconfig.vidHeight - height, width, height,
 			0, 0, 1, 1, cls.recordingShader, cls.xadjust, cls.yadjust);
 	} else if (cl_drawRecording->integer) {
 		pos = FS_FTell( clc.demofile );
@@ -356,10 +356,10 @@ void SCR_DrawDebugGraph (void)
 	w = cls.glconfig.vidWidth;
 	x = 0;
 	y = cls.glconfig.vidHeight;
-	re.SetColor( g_color_table[0] );
-	re.DrawStretchPic(x, y - cl_graphheight->integer, w, cl_graphheight->integer,
+	re->SetColor( g_color_table[0] );
+	re->DrawStretchPic(x, y - cl_graphheight->integer, w, cl_graphheight->integer,
 		0, 0, 0, 0, cls.whiteShader, cls.xadjust, cls.yadjust );
-	re.SetColor( NULL );
+	re->SetColor( NULL );
 
 	for (a=0 ; a<w ; a++)
 	{
@@ -371,7 +371,7 @@ void SCR_DrawDebugGraph (void)
 		if (v < 0)
 			v += cl_graphheight->integer * (1+(int)(-v / cl_graphheight->integer));
 		h = (int)v % cl_graphheight->integer;
-		re.DrawStretchPic( x+w-1-a, y - h, 1, h,
+		re->DrawStretchPic( x+w-1-a, y - h, 1, h,
 			0, 0, 0, 0, cls.whiteShader, cls.xadjust, cls.yadjust );
 	}
 }
@@ -419,7 +419,7 @@ This will be called twice if rendering in stereo mode
 void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 	qboolean skipBackend = (qboolean)(com_minimized->integer && !CL_VideoRecording());
 
-	re.BeginFrame( stereoFrame, skipBackend );
+	re->BeginFrame( stereoFrame, skipBackend );
 
 	if ( !uivm ) {
 		Com_DPrintf("draw screen without UI loaded\n");
@@ -446,8 +446,8 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 		case CA_CONNECTED:
 			{
 				// workaround for ingame UI not loading connect.menu
-				qhandle_t hShader = re.RegisterShader("menu/art/unknownmap");
-				re.DrawStretchPic(0, 0, 640, 480, 0, 0, 1, 1, hShader, 1, 1);
+				qhandle_t hShader = re->RegisterShader("menu/art/unknownmap");
+				re->DrawStretchPic(0, 0, 640, 480, 0, 0, 1, 1, hShader, 1, 1);
 			}
 			// connecting clients will only show the connection dialog
 			// refresh to update the time
@@ -487,7 +487,7 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 		SCR_DrawDebugGraph ();
 	}
 
-	re.EndFrame();
+	re->EndFrame();
 }
 
 /*
@@ -523,9 +523,9 @@ void SCR_UpdateScreen( void ) {
 	CL_TakeVideoFrame();
 
 	if ( com_speeds->integer ) {
-		re.SwapBuffers( &time_frontend, &time_backend );
+		re->SwapBuffers( &time_frontend, &time_backend );
 	} else {
-		re.SwapBuffers( NULL, NULL );
+		re->SwapBuffers( NULL, NULL );
 	}
 
 	recursive = 0;
@@ -618,7 +618,7 @@ void SCR_CenterPrint (char *str)//, PalIdx_t colour)
 			Com_Printf ("%s\n", save_pos);
 
 			// RWL - commented out
-//			scr_center_widths[scr_center_lines] = re.StrlenFont(save_pos, scr_font);;
+//			scr_center_widths[scr_center_lines] = re->StrlenFont(save_pos, scr_font);;
 			scr_center_widths[scr_center_lines] = 640;
 
 

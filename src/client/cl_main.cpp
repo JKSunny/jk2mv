@@ -5,9 +5,10 @@
 #include <limits.h>
 #include "snd_local.h"
 #include <mv_setup.h>
+#include "../sys/sys_loadlib.h"
 
 #if !defined(G2_H_INC)
-	#include "../ghoul2/G2_local.h"
+	#include "../ghoul2/G2.h"
 #endif
 
 #ifdef G2_COLLISION_ENABLED
@@ -19,6 +20,8 @@
 #ifdef _DONETPROFILE_
 #include "../qcommon/INetProfile.h"
 #endif
+
+cvar_t	*cl_renderer;
 
 cvar_t	*cl_nodelta;
 cvar_t	*cl_debugMove;
@@ -94,7 +97,8 @@ vm_t				*cgvm;
 netadr_t rcon_address;
 
 // Structure containing functions exported from refresh DLL
-refexport_t	re;
+refexport_t	*re = NULL;
+static void	*rendererLib = NULL;
 
 ping_t	cl_pinglist[MAX_PINGREQUESTS];
 
@@ -696,7 +700,7 @@ void CL_NextDemo( void ) {
 CL_ShutdownAll
 =====================
 */
-void CL_ShutdownAll(void) {
+void CL_ShutdownAll( qboolean shutdownRef ) {
 	CL_KillDownload();
 
 	// stop recording
@@ -709,8 +713,10 @@ void CL_ShutdownAll(void) {
 	CL_ShutdownUI();
 
 	// shutdown the renderer
-	if ( re.Shutdown ) {
-		re.Shutdown( qfalse );		// don't destroy window or context
+	if(shutdownRef)
+		CL_ShutdownRef( qfalse );
+	if ( re && re->Shutdown ) {
+		re->Shutdown( qfalse/*, qfalse*/ );		// don't destroy window or context // todo
 	}
 
 	cls.uiStarted = qfalse;
@@ -728,17 +734,17 @@ ways a client gets into a game
 Also called by Com_Error
 =================
 */
-extern void FixGhoul2InfoLeaks(bool);
+//extern void FixGhoul2InfoLeaks(bool);
 
 void CL_FlushMemory( qboolean disconnecting ) {
 
 	// shutdown all the client stuff
-	CL_ShutdownAll();
+	CL_ShutdownAll( qfalse );
 
 	// if not running a server clear the whole hunk
 	if ( !com_sv_running->integer ) {
 		// clear collision map data
-		FixGhoul2InfoLeaks(false);
+		re->G2API_FixGhoul2InfoLeaks(false);
 		CM_ClearMap();
 		// clear the whole hunk
 		Hunk_Clear();
@@ -1284,7 +1290,7 @@ void CL_Vid_Restart_f( void ) {
 	// shutdown the CGame
 	CL_ShutdownCGame();
 	// shutdown the renderer and clear the renderer interface
-	CL_ShutdownRef();
+	CL_ShutdownRef( qtrue );
 	// client is no longer pure untill new checksums are sent
 	CL_ResetPureClientAtServer();
 	// clear pak references
@@ -2430,7 +2436,7 @@ void CL_CheckUserinfo( void ) {
 }
 
 #ifdef G2_COLLISION_ENABLED
-extern CMiniHeap *G2VertSpaceServer;
+//extern CMiniHeap *G2VertSpaceServer;
 #endif
 
 /*
@@ -2585,12 +2591,22 @@ void QDECL CL_RefPrintf( int print_level, const char *fmt, ...) {
 CL_ShutdownRef
 ============
 */
-void CL_ShutdownRef( void ) {
-	if ( !re.Shutdown ) {
-		return;
+void CL_ShutdownRef( qboolean restarting ) {
+	if ( re )
+	{
+		if ( re->Shutdown )
+		{
+			re->Shutdown( qtrue/*, restarting*/ ); // todo
+		}
 	}
-	re.Shutdown( qtrue );
-	Com_Memset( &re, 0, sizeof( re ) );
+
+	re = NULL;
+
+	if ( rendererLib != NULL ) {
+		Sys_UnloadDll (rendererLib);
+		//Sys_UnloadModuleLibrary?
+		rendererLib = NULL;
+	}
 }
 
 /*
@@ -2600,18 +2616,18 @@ CL_InitRenderer
 */
 void CL_InitRenderer( void ) {
 	// this sets up the renderer and calls R_Init
-	re.BeginRegistration( &cls.glconfig );
+	re->BeginRegistration( &cls.glconfig );
 
 	// load character sets
 #ifdef _JK2
-	cls.charSetShader = re.RegisterShaderNoMip("gfx/2d/charsgrid_med");
+	cls.charSetShader = re->RegisterShaderNoMip("gfx/2d/charsgrid_med");
 #else
 	cls.charSetShader = re.RegisterShaderNoMip( "gfx/2d/bigchars" );
 #endif
 
-	cls.whiteShader = re.RegisterShader( "white" );
-	cls.consoleShader = re.RegisterShader( "console" );
-	cls.recordingShader = re.RegisterShaderNoMip("gfx/2d/demorec");
+	cls.whiteShader = re->RegisterShader( "white" );
+	cls.consoleShader = re->RegisterShader( "console" );
+	cls.recordingShader = re->RegisterShaderNoMip("gfx/2d/demorec");
 	cls.xadjust = (float) SCREEN_WIDTH / cls.glconfig.vidWidth;
 	cls.yadjust = (float) SCREEN_HEIGHT / cls.glconfig.vidHeight;
 
@@ -2629,7 +2645,7 @@ CL_UpdateGLConfig
 ============
 */
 void CL_UpdateRefConfig( void ) {
-	re.UpdateGLConfig( &cls.glconfig );
+	re->UpdateGLConfig( &cls.glconfig );
 
 	cls.xadjust = (float) SCREEN_WIDTH / cls.glconfig.vidWidth;
 	cls.yadjust = (float) SCREEN_HEIGHT / cls.glconfig.vidHeight;
@@ -2690,11 +2706,94 @@ int CL_ScaledMilliseconds(void) {
 CL_InitRef
 ============
 */
+
+//qcommon/cm_load.cpp
+extern void *gpvCachedMapDiskImage;
+extern qboolean gbUsingCachedMapDataRightNow;
+
+static char *GetSharedMemory( void ) { return cl.mSharedMemory; }
+static qboolean CGVMLoaded( void ) { return (qboolean)cls.cgameStarted; }
+static void *CM_GetCachedMapDiskImage( void ) { return gpvCachedMapDiskImage; }
+static void CM_SetCachedMapDiskImage( void *ptr ) { gpvCachedMapDiskImage = ptr; }
+static void CM_SetUsingCache( qboolean usingCache ) { gbUsingCachedMapDataRightNow = usingCache; }
+
+#define DEFAULT_RENDER_LIBRARY "rd-vanilla"	// technically "rd-vanilla" doesn't excists, its bundled in the client executable as a fallback 
+#define DLL_EXT ".dll"
+
+#define G2_VERT_SPACE_SERVER_SIZE 256
+CMiniHeap *G2VertSpaceServer = NULL;
+CMiniHeap CMiniHeap_singleton(G2_VERT_SPACE_SERVER_SIZE * 1024);
+
+static CMiniHeap *GetG2VertSpaceServer( void ) {
+	return G2VertSpaceServer;
+}
+
+typedef enum {
+	RENDERER_DEFAULT,
+	RENDERER_MODULAR,
+	RENDERER_MODULAR_BAD_DLL,
+	RENDERER_MODULAR_BAD_REFAPI,
+} renderer_t;
+
+static void CL_LoadModularRenderer( GetRefAPI_t &GetModRefAPI ) {
+	char		dllName[MAX_OSPATH];
+	renderer_t	renderer;
+
+	cl_renderer = Cvar_Get( "cl_renderer", DEFAULT_RENDER_LIBRARY, CVAR_ARCHIVE|CVAR_LATCH );
+
+	Com_sprintf( dllName, sizeof( dllName ), "%s_" ARCH_STRING DLL_EXT, cl_renderer->string );
+	
+	if ( !strcmp(cl_renderer->string, cl_renderer->resetString) )
+		renderer = RENDERER_DEFAULT;
+
+	// try to load modular renderer
+	else {
+		if ( !( rendererLib = Sys_LoadDll( dllName, qfalse ) ) )
+			renderer = RENDERER_MODULAR_BAD_DLL;
+
+		// succesfully loaded modular renderer binary, try to link the refAPI now
+		else {
+			GetModRefAPI = (GetRefAPI_t)Sys_LoadFunction( rendererLib, "GetRefAPI" );
+
+			if ( !GetModRefAPI )
+				renderer = RENDERER_MODULAR_BAD_REFAPI;
+			else
+				renderer = RENDERER_MODULAR;
+		}
+	}
+
+	switch ( renderer ) {
+		case RENDERER_MODULAR_BAD_DLL: 
+		case RENDERER_MODULAR_BAD_REFAPI: 
+		{
+			if ( renderer == RENDERER_MODULAR_BAD_REFAPI )
+				Com_Printf( S_COLOR_RED "Can't load symbol GetRefAPI: '%s'\n", Sys_LibraryError() );
+
+			Com_Printf( S_COLOR_YELLOW "Failed modular renderer: '%s', using default as fallback\n", dllName );
+			break;
+		}
+		case RENDERER_MODULAR: 
+			Com_Printf( S_COLOR_YELLOW "Using modular renderer : '%s'\n", dllName );
+			break;
+		case RENDERER_DEFAULT:
+		default:
+			GetModRefAPI = NULL;
+			Com_Printf( S_COLOR_YELLOW "Using default renderer\n" ); 
+			break;
+	}
+}
+
 void CL_InitRef( void ) {
 	refimport_t	ri;
 	refexport_t	*ret;
 
 	Com_Printf( "----- Initializing Renderer ----\n" );
+
+	GetRefAPI_t	GetModRefAPI = NULL;
+
+	CL_LoadModularRenderer( GetModRefAPI );
+
+	memset( &ri, 0, sizeof( ri ) );
 
 	ri.Cmd_AddCommand = Cmd_AddCommand;
 	ri.Cmd_RemoveCommand = Cmd_RemoveCommand;
@@ -2704,6 +2803,7 @@ void CL_InitRef( void ) {
 	ri.Cmd_ArgsBuffer = Cmd_ArgsBuffer;
 	ri.Printf = CL_RefPrintf;
 	ri.Error = Com_Error;
+	ri.OPrintf = Com_OPrintf;
 	ri.Milliseconds = CL_ScaledMilliseconds;
 	ri.Malloc = Z_Malloc;//CL_RefMalloc;
 	ri.Free = Z_Free;
@@ -2714,6 +2814,15 @@ void CL_InitRef( void ) {
 #endif
 	ri.Hunk_AllocateTempMemory = Hunk_AllocateTempMemory;
 	ri.Hunk_FreeTempMemory = Hunk_FreeTempMemory;
+
+	ri.Hunk_MemoryRemaining = Hunk_MemoryRemaining;
+
+	ri.Z_Malloc = Z_Malloc;
+	ri.Z_Free = Z_Free;
+	ri.Z_MemSize = Z_MemSize;
+	ri.Z_MorphMallocTag = Z_MorphMallocTag;
+
+
 	ri.CM_DrawDebugSurface = CM_DrawDebugSurface;
 	ri.FS_ReadFile = FS_ReadFile;
 	ri.FS_ReadFileSkipJKA = FS_ReadFileSkipJKA;
@@ -2723,19 +2832,62 @@ void CL_InitRef( void ) {
 	ri.FS_ListFiles = FS_ListFiles;
 	ri.FS_FileIsInPAK = FS_FileIsInPAK;
 	ri.FS_FileExists = FS_FileExists;
+	ri.FS_FCloseFile = FS_FCloseFile_RI;
+	ri.FS_FOpenFileRead = FS_FOpenFileRead_RI;
+	ri.FS_FOpenFileWrite = FS_FOpenFileWrite_RI;
+
+
 	ri.Cvar_Get = Cvar_Get;
 	ri.Cvar_Set = Cvar_Set;
 	ri.Cvar_SetValue = Cvar_SetValue;
+	ri.Cvar_VariableStringBuffer = Cvar_VariableStringBuffer;
+	ri.Cvar_VariableString = Cvar_VariableString;
+	ri.Cvar_VariableValue = Cvar_VariableValue;
+	ri.Cvar_VariableIntegerValue = Cvar_VariableIntegerValue;
 
+	ri.CM_BoxTrace = CM_BoxTrace;
+	ri.CM_DrawDebugSurface = CM_DrawDebugSurface;
+	ri.CM_ClusterPVS = CM_ClusterPVS;
+	ri.CM_LeafArea = CM_LeafArea;
+	ri.CM_LeafCluster = CM_LeafCluster;
+	ri.CM_PointLeafnum = CM_PointLeafnum;
+	ri.CM_PointContents = CM_PointContents;
+	ri.S_RestartMusic = S_RestartMusic;
+	ri.SND_RegisterAudio_LevelLoadEnd = SND_RegisterAudio_LevelLoadEnd;
+
+	ri.CL_WriteAVIVideoFrame = CL_WriteAVIVideoFrame;
 	// cinematic stuff
 
 	ri.CIN_UploadCinematic = CIN_UploadCinematic;
 	ri.CIN_PlayCinematic = CIN_PlayCinematic;
 	ri.CIN_RunCinematic = CIN_RunCinematic;
 
-	ri.CM_PointContents = CM_PointContents;
+	ri.CM_GetCachedMapDiskImage = CM_GetCachedMapDiskImage;
+	ri.CM_SetCachedMapDiskImage = CM_SetCachedMapDiskImage;
+	ri.CM_SetUsingCache = CM_SetUsingCache;
 
-	ret = GetRefAPI( REF_API_VERSION, &ri );
+	ri.WIN_UpdateGLConfig = WIN_UpdateGLConfig;
+    ri.WIN_Init = WIN_Init;
+	ri.WIN_SetGamma = WIN_SetGamma;
+    ri.WIN_Shutdown = WIN_Shutdown;
+    ri.WIN_Present = WIN_Present;
+
+	//RAZFIXME: Might have to do something about this...
+	ri.GetG2VertSpaceServer = GetG2VertSpaceServer;
+	G2VertSpaceServer = &CMiniHeap_singleton;
+
+	// Vulkan 
+	ri.VK_IsMinimized = WIN_VK_IsMinimized;
+	ri.VK_GetInstanceProcAddress = WIN_VK_GetInstanceProcAddress;
+	ri.VK_createSurfaceImpl = WIN_VK_createSurfaceImpl;
+	ri.VK_destroyWindow = WIN_VK_destroyWindow;
+
+	// load modular renderer or fallback
+	if ( GetModRefAPI ) {
+		ret = GetModRefAPI( REF_API_VERSION, &ri );
+	}
+	else
+		ret = GetRefAPI( REF_API_VERSION, &ri );
 
 #if defined __USEA3D && defined __A3D_GEOM
 	hA3Dg_ExportRenderGeom (ret);
@@ -2747,7 +2899,7 @@ void CL_InitRef( void ) {
 		Com_Error (ERR_FATAL, "Couldn't initialize refresh" );
 	}
 
-	re = *ret;
+	re = ret;
 
 	// unpause so the cgame definately gets a snapshot and renders a frame
 	Cvar_Set( "cl_paused", "0" );
@@ -3048,10 +3200,8 @@ void CL_Shutdown( void ) {
 
 	CL_Disconnect( qtrue );
 
-	CL_ShutdownRef();	//must be before shutdown all so the images get dumped in RE_Shutdown
-
 	// RJ: added the shutdown all to close down the cgame (to free up some memory, such as in the fx system)
-	CL_ShutdownAll();
+	CL_ShutdownAll( qtrue );
 
 	S_Shutdown();
 	//CL_ShutdownUI();
@@ -4131,7 +4281,7 @@ void CL_ShaderStateChanged( void ) {
 	if ( cls.cs_remaps < CS_SYSTEMINFO || cls.cs_remaps >= MAX_CONFIGSTRINGS ) return;
 
 	// Clear any active remaps. We are going to reapply those that should stay below when parsing the string anyway.
-	re.RemoveAdvancedRemaps();
+	re->RemoveAdvancedRemaps();
 
 	curPos = cl.gameState.stringData + cl.gameState.stringOffsets[ cls.cs_remaps ];
 	endPos = curPos + strlen( curPos );
@@ -4255,6 +4405,6 @@ void CL_ShaderStateChanged( void ) {
 		else styleModeValue = SHADERREMAP_STYLE_PRESERVE; // fallback to preserve
 
 		// Apply remap
-		re.RemapShaderAdvanced( originalShader, newShader, timeOffset ? atoi(timeOffset) : 0, lightmapModeValue, styleModeValue );
+		re->RemapShaderAdvanced( originalShader, newShader, timeOffset ? atoi(timeOffset) : 0, lightmapModeValue, styleModeValue );
 	}
 }

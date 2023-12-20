@@ -40,6 +40,7 @@
 	TAGDEF(TEXTPOOL),					// for some special text-pool class thingy
 	TAGDEF(FX_PARSER),					// fx parser ( actually the generic parser that Rick wrote )
 	TAGDEF(IMAGE_T),					// an image_t struct (no longer on the hunk because of cached texture stuff)
+	TAGDEF(TEMP_PNG),					// image workspace that's only temporary
 //	TAGDEF(SOUNDPOOL),					// pool of mem for the sound system
 	TAGDEF(BSP),						// guess.
 	TAGDEF(BSP_DISKIMAGE),				// temp during loading, to save both server and renderer fread()ing the same file. Only used if not low physical memory (currently 96MB)

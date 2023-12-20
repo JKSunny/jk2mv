@@ -8,18 +8,15 @@
 #endif
 
 #if !defined(TR_LOCAL_H)
-	#include "../renderer/tr_local.h"
-#endif
-#if !defined(_QCOMMON_H_)
-	#include "../qcommon/qcommon.h"
+	#include "tr_local.h"
 #endif
 
-#include "../renderer/matcomp.h"
+#include "../rd-common/matcomp.h"
 
 #if !defined(G2_H_INC)
-	#include "G2.h"
+	#include "../ghoul2/G2.h"
 #endif
-	#include "G2_local.h"
+	#include "../ghoul2/G2_local.h"
 
 // #ifdef assert
 // #	undef assert

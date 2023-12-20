@@ -7,13 +7,13 @@
 #endif
 
 #if !defined(TR_LOCAL_H)
-	#include "../renderer/tr_local.h"
+	#include "tr_local.h"
 #endif
 
 #if !defined(G2_H_INC)
-	#include "G2.h"
+	#include "../ghoul2/G2.h"
 #endif
-#include "G2_local.h"
+#include "../ghoul2/G2_local.h"
 
 #ifdef G2_COLLISION_ENABLED
 #include "../qcommon/MiniHeap.h"
@@ -50,7 +50,7 @@ CGhoul2Info_v *G2API_GetGhoul2Model(g2handle_t g2h) {
 	return &ghlIt->second;
 }
 
-void FixGhoul2InfoLeaks(bool ricksCrazyOnServer)
+void G2API_FixGhoul2InfoLeaks(bool ricksCrazyOnServer)
 {
 	ghoultable[ricksCrazyOnServer].clear();
 	maxModelIndex[ricksCrazyOnServer] = 0;
@@ -1021,11 +1021,12 @@ void G2API_CollisionDetect(CollisionRecord_t *collRecMap, g2handle_t g2h, const 
 		G2_GenerateWorldMatrix(angles, position);
 
 #ifdef G2_COLLISION_ENABLED
-		G2VertSpace->ResetHeap();
+		//G2VertSpace->ResetHeap();
+		ri.GetG2VertSpaceServer()->ResetHeap();
 #endif
 
 		// now having done that, time to build the model
-		G2_TransformModel(*ghoul2, frameNumber, scale, G2VertSpace, useLod);
+		G2_TransformModel(*ghoul2, frameNumber, scale, ri.GetG2VertSpaceServer(), useLod);
 
 		// model is built. Lets check to see if any triangles are actually hit.
 		// first up, translate the ray to model space

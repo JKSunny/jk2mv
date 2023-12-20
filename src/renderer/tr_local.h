@@ -1,9 +1,9 @@
 #ifndef TR_LOCAL_H
 #define TR_LOCAL_H
 
-#include "../qcommon/qcommon.h"
 #include "../qcommon/qfiles.h"
-#include "tr_public.h"
+#include "../rd-common/tr_public.h"
+#include "../rd-common/tr_common.h"
 
 #ifndef DEDICATED
 #include "qgl.h"
@@ -1465,7 +1465,7 @@ shader_t	*R_FindAdvancedRemapShader( const char *name, const int *lightmapIndex,
 shader_t	*R_GetShaderByHandle( qhandle_t hShader );
 // shader_t	*R_GetShaderByState( int index, int *cycleTime );
 shader_t *R_FindShaderByName( const char *name );
-void		R_InitShaders( void );
+void		R_InitShaders( qboolean server );
 void		R_ShaderList_f( void );
 void	R_RemapShader(const char *oldShader, const char *newShader, const char *timeOffset);
 void R_RemapShaderAdvanced(const char *shaderName, const char *newShaderName, int timeOffset, shaderRemapLightmapType_t lightmapMode, shaderRemapStyleType_t styleMode);

@@ -10,7 +10,7 @@
 #endif
 
 #if !defined(G2_H_INC)
-	#include "../ghoul2/G2_local.h"
+	#include "../ghoul2/ghoul2_shared.h"
 #endif
 
 #include "../api/mvapi.h"
@@ -358,7 +358,7 @@ SV_GameSystemCalls
 The module is making a system call
 ====================
 */
-extern bool RicksCrazyOnServer;
+
 intptr_t SV_GameSystemCalls( intptr_t *args ) {
 	// fix syscalls from 1.02 to match 1.04
 	// this is a mess... can it be done better?
@@ -369,7 +369,7 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
 	}
 
 	// set game ghoul2 context
-	RicksCrazyOnServer = true;
+	re->G2API_RicksCrazyOnServer( true );
 
 	switch( args[0] ) {
 	case G_PRINT:
@@ -961,58 +961,59 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
 
 	case G_G2_LISTBONES:
 		// G2API_ListBones( (CGhoul2Info *) VMA(1), args[2]);
-		G2API_ListBones((g2handle_t)args[1], args[2], args[3]);
+		re->G2API_ListBones((g2handle_t)args[1], args[2], args[3]);
 		return 0;
 
 	case G_G2_LISTSURFACES:
 		// G2API_ListSurfaces( (CGhoul2Info *) args[1] );
-		G2API_ListSurfaces((g2handle_t)args[1], args[2]);
+		re->G2API_ListSurfaces((g2handle_t)args[1], args[2]);
 		return 0;
 
 	case G_G2_HAVEWEGHOULMODELS:
-		return G2API_HaveWeGhoul2Models((g2handle_t)args[1]);
+		return re->G2API_HaveWeGhoul2Models((g2handle_t)args[1]);
 
 	case G_G2_SETMODELS:
 		// G2API_SetGhoul2ModelIndexes((g2handle_t)args[1], (qhandle_t *)VMA(2), (qhandle_t *)VMA(3));
 		return 0;
 
 	case G_G2_GETBOLT:
-		return G2API_GetBoltMatrix((g2handle_t)args[1], args[2], args[3], VMAV(4, mdxaBone_t), VMAP(5, const vec_t, 3), VMAP(6, const vec_t, 3), args[7], VMAA(8, const qhandle_t, G2API_GetMaxModelIndex(true) + 1), VMAP(9, const vec_t, 3));
+		return re->G2API_GetBoltMatrix((g2handle_t)args[1], args[2], args[3], VMAV(4, mdxaBone_t), VMAP(5, const vec_t, 3), VMAP(6, const vec_t, 3), args[7], VMAA(8, const qhandle_t, re->G2API_GetMaxModelIndex(true) + 1), VMAP(9, const vec_t, 3));
 
 	case G_G2_GETBOLT_NOREC:
-		gG2_GBMNoReconstruct = qtrue;
-		return G2API_GetBoltMatrix((g2handle_t)args[1], args[2], args[3], VMAV(4, mdxaBone_t), VMAP(5, const vec_t, 3), VMAP(6, const vec_t, 3), args[7], VMAA(8, const qhandle_t, G2API_GetMaxModelIndex(true) + 1), VMAP(9, const vec_t, 3));
+		re->G2API_BoltMatrixReconstruction( qfalse );//gG2_GBMNoReconstruct = qtrue;
+		return re->G2API_GetBoltMatrix((g2handle_t)args[1], args[2], args[3], VMAV(4, mdxaBone_t), VMAP(5, const vec_t, 3), VMAP(6, const vec_t, 3), args[7], VMAA(8, const qhandle_t, re->G2API_GetMaxModelIndex(true) + 1), VMAP(9, const vec_t, 3));
 
 	case G_G2_GETBOLT_NOREC_NOROT:
-		gG2_GBMNoReconstruct = qtrue;
-		gG2_GBMUseSPMethod = qtrue;
-		return G2API_GetBoltMatrix((g2handle_t)args[1], args[2], args[3], VMAV(4, mdxaBone_t), VMAP(5, const vec_t, 3), VMAP(6, const vec_t, 3), args[7], VMAA(8, const qhandle_t, G2API_GetMaxModelIndex(true) + 1), VMAP(9, const vec_t, 3));
+		//RAZFIXME: cgame reconstructs bolt matrix, why is this different?
+		re->G2API_BoltMatrixReconstruction( qfalse );//gG2_GBMNoReconstruct = qtrue;
+		re->G2API_BoltMatrixSPMethod( qtrue );//gG2_GBMUseSPMethod = qtrue;
+		return re->G2API_GetBoltMatrix((g2handle_t)args[1], args[2], args[3], VMAV(4, mdxaBone_t), VMAP(5, const vec_t, 3), VMAP(6, const vec_t, 3), args[7], VMAA(8, const qhandle_t, re->G2API_GetMaxModelIndex(true) + 1), VMAP(9, const vec_t, 3));
 
 	case G_G2_INITGHOUL2MODEL:
-		return	G2API_InitGhoul2Model(VMAV(1, g2handle_t), VMAS(2), args[3], (qhandle_t) args[4],
+		return	re->G2API_InitGhoul2Model(VMAV(1, g2handle_t), VMAS(2), args[3], (qhandle_t) args[4],
 			(qhandle_t) args[5], args[6], args[7]);
 
 	case G_G2_ADDBOLT:
-		return	G2API_AddBolt((g2handle_t)args[1], args[2], VMAS(3));
+		return	re->G2API_AddBolt((g2handle_t)args[1], args[2], VMAS(3));
 
 	case G_G2_SETBOLTINFO:
-		G2API_SetBoltInfo((g2handle_t)args[1], args[2], args[3]);
+		re->G2API_SetBoltInfo((g2handle_t)args[1], args[2], args[3]);
 		return 0;
 
 	case G_G2_ANGLEOVERRIDE:
-		return G2API_SetBoneAngles((g2handle_t)args[1], args[2], VMAS(3), VMAP(4, vec_t, 3), args[5],
+		return re->G2API_SetBoneAngles((g2handle_t)args[1], args[2], VMAS(3), VMAP(4, vec_t, 3), args[5],
 			(const Eorientations)args[6], (const Eorientations)args[7], (const Eorientations)args[8],
 			VMAA(9, qhandle_t, args[2] + 1), args[10], args[11]);
 
 	case G_G2_PLAYANIM:
-		return G2API_SetBoneAnim((g2handle_t)args[1], args[2], VMAS(3), args[4], args[5],
+		return re->G2API_SetBoneAnim((g2handle_t)args[1], args[2], VMAS(3), args[4], args[5],
 								args[6], VMF(7), args[8], VMF(9), args[10]);
 
 	case G_G2_GETGLANAME:
 		//return (int)G2API_GetGLAName(*((CGhoul2Info_v *)args[1]), args[2]);
 		{ //Since returning a pointer in such a way to a VM seems to cause MASSIVE FAILURE<tm>, we will shove data into the pointer the vm passes instead
 			char *local;
-			local = G2API_GetGLAName((g2handle_t)args[1], args[2]);
+			local = re->G2API_GetGLAName((g2handle_t)args[1], args[2]);
 			if (local)
 			{
 				char *point = VMAP(3, char, strlen(local) + 1);
@@ -1023,29 +1024,29 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
 		return 0;
 
 	case G_G2_COPYGHOUL2INSTANCE:
-		return G2API_CopyGhoul2Instance((g2handle_t)args[1], (g2handle_t)args[2], args[3]);
+		return re->G2API_CopyGhoul2Instance((g2handle_t)args[1], (g2handle_t)args[2], args[3]);
 
 	case G_G2_COPYSPECIFICGHOUL2MODEL:
-		G2API_CopySpecificG2Model((g2handle_t)args[1], args[2], (g2handle_t)args[3], args[4]);
+		re->G2API_CopySpecificG2Model((g2handle_t)args[1], args[2], (g2handle_t)args[3], args[4]);
 		return 0;
 
 	case G_G2_DUPLICATEGHOUL2INSTANCE:
-		G2API_DuplicateGhoul2Instance((g2handle_t)args[1], VMAV(2, g2handle_t));
+		re->G2API_DuplicateGhoul2Instance((g2handle_t)args[1], VMAV(2, g2handle_t));
 		return 0;
 
 	case G_G2_HASGHOUL2MODELONINDEX:
-		return G2API_HasGhoul2ModelOnIndex(VMAV(1, const g2handle_t), args[2]);
+		return re->G2API_HasGhoul2ModelOnIndex(VMAV(1, const g2handle_t), args[2]);
 
 	case G_G2_REMOVEGHOUL2MODEL:
-		return G2API_RemoveGhoul2Model(VMAV(1, g2handle_t), args[2]);
+		return re->G2API_RemoveGhoul2Model(VMAV(1, g2handle_t), args[2]);
 
 	case G_G2_CLEANMODELS:
-		G2API_CleanGhoul2Models(VMAV(1, g2handle_t));
+		re->G2API_CleanGhoul2Models(VMAV(1, g2handle_t));
 		return 0;
 
 	case G_G2_COLLISIONDETECT:
 #ifdef G2_COLLISION_ENABLED
-		G2API_CollisionDetect(VMAA(1, CollisionRecord_t, MAX_G2_COLLISIONS),
+		re->G2API_CollisionDetect(VMAA(1, CollisionRecord_t, MAX_G2_COLLISIONS),
 			(g2handle_t)args[2],
 			VMAP(3, const vec_t, 3),
 			VMAP(4, const vec_t, 3),
@@ -1144,12 +1145,12 @@ SV_InitGameVM
 Called for both a full init and a restart
 ==================
 */
-extern void FixGhoul2InfoLeaks(bool);
+//extern void FixGhoul2InfoLeaks(bool);
 static void SV_InitGameVM( qboolean restart ) {
 	int		i;
 	int apireq;
 
-	FixGhoul2InfoLeaks(true);
+	re->G2API_FixGhoul2InfoLeaks(true);
 
 	// clear physics interaction links
 	SV_ClearWorld ();
