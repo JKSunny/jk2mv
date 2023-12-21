@@ -4572,8 +4572,6 @@ sortedIndex.
 */
 extern bool gServerSkinHack;
 static void FixRenderCommandList( int newShader ) {
-	// todo
-#if 0
 	if ( gServerSkinHack )
 		return;
 
@@ -4628,7 +4626,7 @@ static void FixRenderCommandList( int newShader ) {
 					sortedIndex = (( drawSurf->sort >> QSORT_SHADERNUM_SHIFT ) & SHADERNUM_MASK);
 					if ( sortedIndex >= newShader ) {
 						sortedIndex = shader->sortedIndex;
-						drawSurf->sort = (sortedIndex << QSORT_SHADERNUM_SHIFT) | (entityNum << QSORT_REFENTITYNUM_SHIFT) | ( fogNum << QSORT_FOGNUM_SHIFT ) | (int)dlightMap;
+						drawSurf->sort = (sortedIndex << QSORT_SHADERNUM_SHIFT) | (entityNum << QSORT_ENTITYNUM_SHIFT) | ( fogNum << QSORT_FOGNUM_SHIFT ) | (int)dlightMap;
 					}
 				}
 				curCmd = (const void *)(ds_cmd + 1);
@@ -4660,7 +4658,6 @@ static void FixRenderCommandList( int newShader ) {
 			}
 		}
 	}
-#endif
 }
 
 /*

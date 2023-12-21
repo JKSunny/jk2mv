@@ -1296,7 +1296,7 @@ Radix sort with 4 byte size buckets
 static void R_RadixSort( drawSurf_t *source, int size )
 {
 	static drawSurf_t scratch[MAX_DRAWSURFS];
-#ifdef Q3_LITTLE_ENDIAN
+#if 1 //Q3_LITTLE_ENDIAN
 	R_Radix(0, size, source, scratch);
 	R_Radix(1, size, scratch, source);
 	R_Radix(2, size, source, scratch);
