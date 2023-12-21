@@ -220,7 +220,14 @@ static void R_LoadLightmaps( lump_t *l, lump_t *surfs, world_t &worldData ) {
 		tr.numLightmaps = numLightmaps;
 	}
 
-	tr.lightmaps = (image_t **)ri.Hunk_Alloc( tr.numLightmaps * sizeof(image_t *), h_low );
+	// interesting ..
+	// Hunk_AllocDebug differs from Hunk_Alloc
+	// Hunk_AllocDebug marks ** as valid, meaning [-1] is not NULL.
+	// 
+	// "tr.lightmaps[lightmapIndex[i]] == NULL" in "R_FindLightmap" returns false on Debug
+	// but true on Release ..
+	//tr.lightmaps = (image_t **)Hunk_Alloc( tr.numLightmaps * sizeof(image_t *), h_low );
+	tr.lightmaps = (image_t **)Z_Malloc( tr.numLightmaps * sizeof(image_t *), TAG_BSP, qtrue );
 
 	textureInternalFormat = GL_RGBA8;
 
