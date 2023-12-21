@@ -818,8 +818,7 @@ void RB_StageIteratorSky( void )
 	if ( backEnd.isGlowPass )
 		return;
 
-	// todo
-	if ( /*skyboxportal &&*/ !( backEnd.refdef.rdflags & RDF_SKYBOXPORTAL ) )
+	if ( skyboxportal && !( backEnd.refdef.rdflags & RDF_SKYBOXPORTAL ) )
 		return;
 
 #ifdef USE_VBO

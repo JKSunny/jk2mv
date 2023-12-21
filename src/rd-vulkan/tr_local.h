@@ -662,6 +662,8 @@ typedef struct {
 
 extern hitMatReg_t		hitMatReg[MAX_HITMAT_ENTRIES];
 
+extern int	skyboxportal;
+extern int	drawskyboxportal;
 /*
 Ghoul2 Insert End
 */

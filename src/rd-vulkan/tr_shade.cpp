@@ -106,8 +106,7 @@ void RB_EndSurface( void ) {
 		return;
 	}
 
-	// todo
-	/*if ( skyboxportal ) {
+	if ( skyboxportal ) {
 		// world
 		if( !( backEnd.refdef.rdflags & RDF_SKYBOXPORTAL ) ) {
 			// don't process these tris at all
@@ -121,7 +120,7 @@ void RB_EndSurface( void ) {
 			if( !( tess.shader->optimalStageIteratorFunc == RB_StageIteratorSky ) )
 				return;
 		}
-	}*/
+	}
 
 	//
 	// update performance counters
