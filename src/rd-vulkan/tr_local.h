@@ -121,6 +121,17 @@ typedef unsigned int glIndex_t;
 #define MAX_STATES_PER_SHADER 32
 #define MAX_STATE_NAME 32
 
+
+//
+// in Jedi Academy this lives in "rd-common/tr_types.h"
+//
+#define	REFENTITYNUM_BITS	11		// can't be increased without changing drawsurf bit packing
+#define	REFENTITYNUM_MASK	((1<<REFENTITYNUM_BITS) - 1)
+// the last N-bit number (2^REFENTITYNUM_BITS - 1) is reserved for the special world refentity,
+//  and this is reflected by the value of MAX_REFENTITIES (which therefore is not a power-of-2)
+#define	MAX_REFENTITIES		((1<<REFENTITYNUM_BITS) - 1)
+#define	REFENTITYNUM_WORLD	((1<<REFENTITYNUM_BITS) - 1)
+
 typedef enum
 {
 	DLIGHT_VERTICAL	= 0,
@@ -1127,19 +1138,13 @@ the bits are allocated as follows:
 #define	FOGNUM_BITS 5
 #define	FOGNUM_MASK ( (1 << FOGNUM_BITS ) - 1 )
 
-// todo sort
-/*#define	QSORT_FOGNUM_SHIFT	DLIGHT_BITS
+#define	QSORT_FOGNUM_SHIFT	DLIGHT_BITS
 #define	QSORT_REFENTITYNUM_SHIFT ( QSORT_FOGNUM_SHIFT + FOGNUM_BITS )
 #define	QSORT_SHADERNUM_SHIFT	( QSORT_REFENTITYNUM_SHIFT + REFENTITYNUM_BITS )
 #if (QSORT_SHADERNUM_SHIFT+SHADERNUM_BITS) > 32
 	#error "Need to update sorting, too many bits."
 #endif
 #define QSORT_REFENTITYNUM_MASK ( REFENTITYNUM_MASK << QSORT_REFENTITYNUM_SHIFT )
-*/
-
-#define	QSORT_SHADERNUM_SHIFT	17	// MAX_SHADERS  (14 bit)
-#define	QSORT_ENTITYNUM_SHIFT	7	// MAX_ENTITIES (10 bit)
-#define	QSORT_FOGNUM_SHIFT		2
 
 extern	int	gl_filter_min, gl_filter_max;
 
@@ -2152,7 +2157,7 @@ typedef struct backEndData_s {
 #else
 	dlight_t			dlights[MAX_DLIGHTS];
 #endif
-	trRefEntity_t		entities[MAX_ENTITIES]; // MAX_REFENTITIES
+	trRefEntity_t		entities[MAX_REFENTITIES]; // MAX_REFENTITIES
 	trMiniRefEntity_t	miniEntities[MAX_MINI_ENTITIES];
 	srfPoly_t			*polys;//[MAX_POLYS];
 	polyVert_t			*polyVerts;//[MAX_POLYVERTS];

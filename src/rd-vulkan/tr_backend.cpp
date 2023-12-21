@@ -237,7 +237,7 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 		
 		R_DecomposeSort(drawSurf->sort, &entityNum, &shader, &fogNum, &dlighted);
 
-		if (vk.renderPassIndex == RENDER_PASS_SCREENMAP && entityNum != ENTITYNUM_WORLD && backEnd.refdef.entities[entityNum].e.renderfx & RF_DEPTHHACK) {
+		if (vk.renderPassIndex == RENDER_PASS_SCREENMAP && entityNum != REFENTITYNUM_WORLD && backEnd.refdef.entities[entityNum].e.renderfx & RF_DEPTHHACK) {
 			continue;
 		}
 
@@ -305,7 +305,7 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 		{
 			depthRange = DEPTH_RANGE_NORMAL;
 
-			if (entityNum != ENTITYNUM_WORLD)
+			if (entityNum != REFENTITYNUM_WORLD)
 			{
 				backEnd.currentEntity = &backEnd.refdef.entities[entityNum];
 				if (backEnd.currentEntity->intShaderTime) {
@@ -444,7 +444,7 @@ static void RB_RenderLitSurfList( dlight_t *dl ) {
 
 		R_DecomposeLitSort(litSurf->sort, &entityNum, &shader, &fogNum);
 
-		if (vk.renderPassIndex == RENDER_PASS_SCREENMAP && entityNum != ENTITYNUM_WORLD && backEnd.refdef.entities[entityNum].e.renderfx & RF_DEPTHHACK) {
+		if (vk.renderPassIndex == RENDER_PASS_SCREENMAP && entityNum != REFENTITYNUM_WORLD && backEnd.refdef.entities[entityNum].e.renderfx & RF_DEPTHHACK) {
 			continue;
 		}
 
@@ -459,8 +459,7 @@ static void RB_RenderLitSurfList( dlight_t *dl ) {
 		// a "entityMergable" shader is a shader that can have surfaces from seperate
 		// entities merged into a single batch, like smoke and blood puff sprites
 		// todo
-		//if (((oldSort ^ litSurf->sort) & ~QSORT_REFENTITYNUM_MASK) || !shader->entityMergable) {
-		if ( litSurf->sort == oldSort  || !shader->entityMergable ) {
+		if (((oldSort ^ litSurf->sort) & ~QSORT_REFENTITYNUM_MASK) || !shader->entityMergable) {
 			if (oldShader != NULL) {
 				RB_EndSurface();
 			}
@@ -476,7 +475,7 @@ static void RB_RenderLitSurfList( dlight_t *dl ) {
 		if (entityNum != oldEntityNum) {
 			depthRange = DEPTH_RANGE_NORMAL;
 
-			if (entityNum != ENTITYNUM_WORLD) {
+			if (entityNum != REFENTITYNUM_WORLD) {
 				backEnd.currentEntity = &backEnd.refdef.entities[entityNum];
 
 				if (backEnd.currentEntity->intShaderTime) {

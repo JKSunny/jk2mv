@@ -3172,7 +3172,8 @@ shader_t *R_FindShader( const char *name, const int *lightmapIndex, const byte *
 	hash = generateHashValue(strippedName, FILE_HASH_SIZE);
 
 	sh = hashTable[hash];
-	for (sh = isAdvancedRemap ? advancedRemapShadersHashTable[hash] : hashTable[hash]; sh; sh = sh->next) {
+	while (sh)
+	{
 		// NOTE: if there was no shader or image available with the name strippedName
 		// then a default shader is created with lightmapIndex == LIGHTMAP_NONE, so we
 		// have to check all default shaders otherwise for every call to R_FindShader
@@ -3181,6 +3182,8 @@ shader_t *R_FindShader( const char *name, const int *lightmapIndex, const byte *
 		{
 			return sh;
 		}
+
+		sh = sh->next;
 	}
 
 
@@ -4626,7 +4629,7 @@ static void FixRenderCommandList( int newShader ) {
 					sortedIndex = (( drawSurf->sort >> QSORT_SHADERNUM_SHIFT ) & SHADERNUM_MASK);
 					if ( sortedIndex >= newShader ) {
 						sortedIndex = shader->sortedIndex;
-						drawSurf->sort = (sortedIndex << QSORT_SHADERNUM_SHIFT) | (entityNum << QSORT_ENTITYNUM_SHIFT) | ( fogNum << QSORT_FOGNUM_SHIFT ) | (int)dlightMap;
+						drawSurf->sort = (sortedIndex << QSORT_SHADERNUM_SHIFT) | (entityNum << QSORT_REFENTITYNUM_SHIFT) | ( fogNum << QSORT_FOGNUM_SHIFT ) | (int)dlightMap;
 					}
 				}
 				curCmd = (const void *)(ds_cmd + 1);
