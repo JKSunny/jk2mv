@@ -1681,6 +1681,11 @@ extern	cvar_t	*r_noServerGhoul2;
 /*
 Ghoul2 Insert End
 */
+
+extern	cvar_t *r_consoleFont;
+extern	cvar_t *r_fontSharpness;
+extern	cvar_t *r_newRemaps;;
+
 //====================================================================
 
 void		R_RenderView( const viewParms_t *parms );

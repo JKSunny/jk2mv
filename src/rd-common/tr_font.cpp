@@ -770,12 +770,8 @@ CFontInfo *RE_Font_GetVariant(CFontInfo *font, float *scale, float xadjust, floa
 
 	if (variants > 0) {
 		CFontInfo *variant;
-		/*int requestedSize = font->GetPointSize() * *scale *
-			r_fontSharpness->value * glConfig.vidHeight *
-			(yadjust / SCREEN_HEIGHT);*/
-
 		int requestedSize = font->GetPointSize() * *scale *
-			1.0 * glConfig.vidHeight *
+			r_fontSharpness->value * glConfig.vidHeight *
 			(yadjust / SCREEN_HEIGHT);
 
 		if (requestedSize <= font->GetPointSize())

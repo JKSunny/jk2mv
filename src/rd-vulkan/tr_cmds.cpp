@@ -386,6 +386,20 @@ void RE_BeginFrame( stereoFrame_t stereoFrame,  qboolean skipBackend ) {
 		vk_update_post_process_pipelines();
 	}
 
+	//
+	// console font stuff
+	//
+	if ( r_consoleFont->modified ) {
+		r_consoleFont->modified = qfalse;
+
+		if ( r_consoleFont->integer == 1 )
+			R_RemapShader("gfx/2d/charsgrid_med", "gfx/2d/code_new_roman", 0);
+		else if ( r_consoleFont->integer == 2 )
+			R_RemapShader("gfx/2d/charsgrid_med", "gfx/2d/mplus_1m_bold", 0);
+		else
+			R_RemapShader("gfx/2d/charsgrid_med", "gfx/2d/charsgrid_med", 0);
+	}
+
 	if ( cl_ratioFix->modified ) {
 		R_Set2DRatio();
 		cl_ratioFix->modified = qfalse;

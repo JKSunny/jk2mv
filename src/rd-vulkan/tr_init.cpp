@@ -264,6 +264,9 @@ cvar_t	*broadsword_dircap=0;
 /*
 Ghoul2 Insert End
 */
+cvar_t *r_consoleFont;
+cvar_t *r_fontSharpness;
+cvar_t *r_newRemaps;
 
 cvar_t *sp_language;
 
@@ -993,6 +996,14 @@ Ghoul2 Insert Start
 /*
 Ghoul2 Insert End
 */
+
+	r_consoleFont						= ri.Cvar_Get( "r_consoleFont",						"1",						CVAR_ARCHIVE | CVAR_GLOBAL );
+	r_consoleFont->modified = qtrue;
+	r_fontSharpness						= ri.Cvar_Get( "r_fontSharpness",					"1",						CVAR_ARCHIVE | CVAR_GLOBAL );
+	r_newRemaps							= ri.Cvar_Get( "r_newRemaps",						"0",						CVAR_CHEAT );	// Only used for testing. Classic remaps are supposed to remain fullbright,
+																																		// because that is how they have been used by maps and serverside mods for
+																																		// more than 20 years. Servers can set a configstring for "mvremap" now.
+
 	r_modelpoolmegs = ri.Cvar_Get("r_modelpoolmegs", "20", CVAR_ARCHIVE );
 	
 	// todo
