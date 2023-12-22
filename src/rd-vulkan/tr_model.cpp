@@ -232,7 +232,7 @@ void *RE_RegisterModels_Malloc(int iSize, void *pvDiskBufferIfJustLoaded, const 
 			char *psShaderName		=		  &((char*)ModelBin.pModelDiskImage)[iShaderNameOffset];
 			int  *piShaderPokePtr	= (int *) &((char*)ModelBin.pModelDiskImage)[iShaderPokeOffset];
 
-			shader_t *sh = R_FindShader( psShaderName, lightmapsNone, stylesDefault, qtrue, qtrue );
+			shader_t *sh = R_FindShader( psShaderName, lightmapsNone, stylesDefault, qtrue );
 
 			if ( sh->defaultShader )
 			{
@@ -297,7 +297,7 @@ void *RE_RegisterServerModels_Malloc(int iSize, const char *psModelFileName, qbo
 			char *psShaderName		=		  &((char*)ModelBin.pModelDiskImage)[iShaderNameOffset];
 			int  *piShaderPokePtr	= (int *) &((char*)ModelBin.pModelDiskImage)[iShaderPokeOffset];
 
-			shader_t *sh = R_FindShader( psShaderName, lightmapsNone, stylesDefault, qtrue, qtrue );
+			shader_t *sh = R_FindShader( psShaderName, lightmapsNone, stylesDefault, qtrue );
 
 			if ( sh->defaultShader )
 			{
@@ -1546,7 +1546,7 @@ static qboolean R_LoadMD3 ( model_t *mod, int lod, void *buffer, const char *mod
         for ( j = 0 ; j < surf->numShaders ; j++, shader++ ) {
             shader_t	*sh;
 
-            sh = R_FindShader( shader->name, lightmapsNone, stylesDefault, qtrue, qtrue );
+            sh = R_FindShader( shader->name, lightmapsNone, stylesDefault, qtrue );
 			if ( sh->defaultShader ) {
 				shader->shaderIndex = 0;
 			} else {

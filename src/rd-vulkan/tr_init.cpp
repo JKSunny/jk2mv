@@ -1335,6 +1335,10 @@ Q_EXPORT refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 	re.AnyLanguage_ReadCharFromString = AnyLanguage_ReadCharFromString;
 
 	re.RemapShader = R_RemapShader;
+#ifdef USE_JK2_SHADER_REMAP
+	re.RemapShaderAdvanced = R_RemapShaderAdvanced;
+	re.RemoveAdvancedRemaps = R_RemoveAdvancedRemaps;
+#endif
 	re.GetEntityToken = R_GetEntityToken;
 	re.inPVS = R_inPVS;
 

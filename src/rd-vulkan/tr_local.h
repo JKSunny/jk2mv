@@ -24,6 +24,12 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #ifndef TR_LOCAL_H
 #define TR_LOCAL_H
 
+#define USE_JK2
+#if defined ( USE_JK2 )
+	#define USE_JK2_SHADER_REMAP
+#endif
+
+
 #define USE_VBO					// store static world geometry in VBO
 #define USE_FOG_ONLY
 #define USE_FOG_COLLAPSE		// not compatible with legacy dlights
@@ -1420,6 +1426,11 @@ typedef struct {
 	shader_t				*shaders[MAX_SHADERS];
 	shader_t				*sortedShaders[MAX_SHADERS];
 
+#ifdef USE_JK2_SHADER_REMAP
+	int						numAdvancedRemapShaders;
+	shader_t				*advancedRemapShaders[MAX_SHADERS];
+#endif
+
 	int						numSkins;
 	skin_t					*skins[MAX_SKINS];
 
@@ -1779,8 +1790,14 @@ qhandle_t	RE_RegisterShader( const char *name );
 qhandle_t	RE_RegisterShaderNoMip( const char *name );
 const char	*RE_ShaderNameFromIndex(int index);
 
-shader_t	*R_FindShader( const char *name, const int *lightmapIndex, const byte *styles, qboolean mipRawImage, qboolean isAdvancedRemap );
+#ifdef USE_JK2_SHADER_REMAP
+shader_t	*R_FindShader( const char *name, const int *lightmapIndex, const byte *styles, qboolean mipRawImage, qboolean isAdvancedRemap = qfalse);
 shader_t	*R_FindAdvancedRemapShader( const char *name, const int *lightmapIndex, const byte *styles, qboolean mipRawImage );
+void		R_RemapShaderAdvanced(const char *shaderName, const char *newShaderName, int timeOffset, shaderRemapLightmapType_t lightmapMode, shaderRemapStyleType_t styleMode);
+void		R_RemoveAdvancedRemaps( void );
+#else
+shader_t	*R_FindShader( const char *name, const int *lightmapIndex, const byte *styles, qboolean mipRawImage);
+#endif
 shader_t	*R_GetShaderByHandle( qhandle_t hShader );
 shader_t	*R_FindShaderByName( const char *name );
 shader_t	*FinishShader( void );
@@ -1790,8 +1807,7 @@ void		R_ShaderList_f( void );
 void		R_RemapShader( const char *oldShader, const char *newShader, const char *timeOffset );
 void		R_ClearShaderHashTable( void );
 void		R_CreateDefaultShadingCmds( image_t *image );
-void		R_RemapShaderAdvanced(const char *shaderName, const char *newShaderName, int timeOffset, shaderRemapLightmapType_t lightmapMode, shaderRemapStyleType_t styleMode);
-void		R_RemoveAdvancedRemaps( void );
+
 //
 // tr_surface.c
 //

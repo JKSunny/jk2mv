@@ -2225,6 +2225,7 @@ static const char *FindShaderInShaderText( const char *shadername ) {
 		}
 	}
 
+#ifndef USE_JK2_SHADER_REMAP	
 	p = s_shaderText;
 
 	if (!p) {
@@ -2247,6 +2248,7 @@ static const char *FindShaderInShaderText( const char *shadername ) {
 			SkipBracedSection(&p);
 		}
 	}
+#endif
 	return NULL;
 }
 
@@ -2300,8 +2302,9 @@ qhandle_t RE_RegisterShaderLightMap( const char *name, const int *lightmapIndex,
 		return 0;
 	}
 
-	sh = R_FindShader(name, lightmapIndex, styles, qtrue, qtrue);
+	sh = R_FindShader(name, lightmapIndex, styles, qtrue);
 
+#ifndef USE_JK2_SHADER_REMAP	
 	// we want to return 0 if the shader failed to
 	// load for some reason, but R_FindShader should
 	// still keep a name allocated for it, so if
@@ -2310,6 +2313,7 @@ qhandle_t RE_RegisterShaderLightMap( const char *name, const int *lightmapIndex,
 	if (sh->defaultShader) {
 		return 0;
 	}
+#endif
 
 	return sh->index;
 }
@@ -2320,6 +2324,13 @@ void R_RemapShader( const char *shaderName, const char *newShaderName, const cha
 	int			hash;
 	shader_t	*sh, *sh2;
 	qhandle_t	h;
+
+#ifdef USE_JK2_SHADER_REMAP	
+	if ( r_newRemaps->integer ) {
+		R_RemapShaderAdvanced( shaderName, newShaderName, (int)(atof(timeOffset)*1000), SHADERREMAP_LIGHTMAP_PRESERVE, SHADERREMAP_STYLE_PRESERVE );
+		return;
+	}
+#endif
 
 	sh = R_FindShaderByName( shaderName );
 	if (sh == NULL || sh == tr.defaultShader) {
@@ -2370,6 +2381,7 @@ void R_RemapShader( const char *shaderName, const char *newShaderName, const cha
 	}
 }
 
+#ifdef USE_JK2_SHADER_REMAP
 void R_RemapShaderAdvanced(const char *shaderName, const char *newShaderName, int timeOffset, shaderRemapLightmapType_t lightmapMode, shaderRemapStyleType_t styleMode) {
 	char		strippedName[MAX_QPATH];
 	int			hash;
@@ -2440,6 +2452,7 @@ void R_RemoveAdvancedRemaps( void ) {
 		tr.shaders[i]->remappedShaderAdvanced = NULL;
 	}
 }
+#endif
 
 //added for ui -rww
 const char *RE_ShaderNameFromIndex( int index)
@@ -2485,19 +2498,18 @@ inline qboolean IsShader( shader_t *sh, const char *name, const int *lightmapInd
 		return qfalse;
 	}
 
-	if (!sh->defaultShader)
+#ifndef USE_JK2_SHADER_REMAP
+	if ( sh->defaultShader )
+		return qtrue;
+#endif
+
+	for ( i = 0; i < MAXLIGHTMAPS; i++ )
 	{
-		for (i = 0; i < MAXLIGHTMAPS; i++)
-		{
-			if (sh->lightmapSearchIndex[i] != lightmapIndex[i])
-			{
-				return qfalse;
-			}
-			if (sh->styles[i] != styles[i])
-			{
-				return qfalse;
-			}
-		}
+		if ( sh->lightmapIndex[i] != lightmapIndex[i] )
+			return qfalse;
+
+		if ( sh->styles[i] != styles[i] )
+			return qfalse;
 	}
 
 	return qtrue;
@@ -2645,10 +2657,17 @@ static qboolean ParseShader( const char **text )
 			continue;
 		}
 		// no mip maps
-		else if (!Q_stricmp(token, "nomipmaps"))
+		else if ( !Q_stricmp( token, "uielement" ) || !Q_stricmp(token, "nomipmaps") )
 		{
 			shader.noMipMaps = 1;
 			shader.noPicMip = 1;
+			continue;
+		}
+		// for high resolution UI elements
+		else if ( !Q_stricmp( token, "uielementhd" ) )
+		{
+			shader.noPicMip = 1;
+			shader.noLightScale = 1;
 			continue;
 		}
 		// no picmip adjustment
@@ -2671,6 +2690,14 @@ static qboolean ParseShader( const char **text )
 		else if (!Q_stricmp(token, "noTC"))
 		{
 			shader.noTC = 1;
+			continue;
+		}
+		// force texturemode, regardless of r_texturemode cvar value
+		else if ( !Q_stricmp( token, "texturemode" ) )
+		{
+			token = COM_ParseExt( text, qfalse );
+			// todo
+			//shader.textureMode = GetTextureMode(token);
 			continue;
 		}
 		// entityMergable, allowing sprite surfaces from multiple entities
@@ -2820,8 +2847,9 @@ qhandle_t RE_RegisterShader( const char *name )
 		return 0;
 	}
 
-	sh = R_FindShader(name, lightmaps2d, stylesDefault, qtrue, qtrue);
+	sh = R_FindShader(name, lightmaps2d, stylesDefault, qtrue);
 
+#ifndef USE_JK2_SHADER_REMAP
 	// we want to return 0 if the shader failed to
 	// load for some reason, but R_FindShader should
 	// still keep a name allocated for it, so if
@@ -2830,6 +2858,7 @@ qhandle_t RE_RegisterShader( const char *name )
 	if (sh->defaultShader) {
 		return 0;
 	}
+#endif
 
 	return sh->index;
 }
@@ -2850,8 +2879,9 @@ qhandle_t RE_RegisterShaderNoMip( const char *name )
 		return 0;
 	}
 
-	sh = R_FindShader(name, lightmaps2d, stylesDefault, qfalse, qfalse);
+	sh = R_FindShader(name, lightmaps2d, stylesDefault, qfalse);
 
+#ifndef USE_JK2_SHADER_REMAP
 	// we want to return 0 if the shader failed to
 	// load for some reason, but R_FindShader should
 	// still keep a name allocated for it, so if
@@ -2860,6 +2890,7 @@ qhandle_t RE_RegisterShaderNoMip( const char *name )
 	if (sh->defaultShader) {
 		return 0;
 	}
+#endif
 
 	return sh->index;
 }
@@ -2975,12 +3006,12 @@ a single large text block that can be scanned for shader names
 #define	MAX_SHADER_FILES	4096
 static void ScanAndLoadShaderFiles( const char *path )
 {
-	const char **shaderFiles[2];
+const char **shaderFiles[3];
 	char *buffers[MAX_SHADER_FILES];
 	const char *p;
 	char *pw;
 	int numShaderFiles;
-	int numShaderFilesType[2];
+	int numShaderFilesType[3];
 	int i, j, type;
 	const char *oldp, *token;
 	char *hashMem;
@@ -2990,6 +3021,7 @@ static void ScanAndLoadShaderFiles( const char *path )
 	// scan for shader files
 	shaderFiles[0] = ri.FS_ListFiles( path, ".shader_mv", &numShaderFilesType[0] );
 	shaderFiles[1] = ri.FS_ListFiles( path, ".shader", &numShaderFilesType[1] );
+	shaderFiles[2] = ri.FS_ListFiles( path, ".shader_jka", &numShaderFilesType[2] );
 
 	if ( !shaderFiles[0] )
 	{
@@ -2999,23 +3031,28 @@ static void ScanAndLoadShaderFiles( const char *path )
 	{
 		numShaderFilesType[1] = 0;
 	}
-
-	if ( numShaderFilesType[0] + numShaderFilesType[1] > MAX_SHADER_FILES ) {
-		ri.Printf( PRINT_WARNING, "WARNING: too many shader files, truncating...\n" );
-		numShaderFilesType[0] = MIN(numShaderFilesType[0], MAX_SHADER_FILES);
-		numShaderFilesType[1] = MAX_SHADER_FILES - numShaderFilesType[0];
+	if ( !shaderFiles[2] )
+	{
+		numShaderFilesType[2] = 0;
 	}
 
-	numShaderFiles = numShaderFilesType[0] + numShaderFilesType[1];
+	if ( numShaderFilesType[0] + numShaderFilesType[1] + numShaderFilesType[2] > MAX_SHADER_FILES ) {
+		ri.Printf( PRINT_WARNING, "WARNING: too many shader files, truncating...\n" );
+		numShaderFilesType[0] = MIN(numShaderFilesType[0], MAX_SHADER_FILES);
+		numShaderFilesType[1] = MIN(numShaderFilesType[1], MAX_SHADER_FILES - numShaderFilesType[0]);
+		numShaderFilesType[2] = MIN(numShaderFilesType[2], MAX_SHADER_FILES - numShaderFilesType[0] - numShaderFilesType[1]);
+	}
+
+	numShaderFiles = numShaderFilesType[0] + numShaderFilesType[1] + numShaderFilesType[2];
 
 	if (numShaderFiles == 0) {
 			ri.Error( ERR_FATAL, "ERROR: no shader files found" );
 	}
 
-	assert(numShaderFilesType[0] > 0 || numShaderFilesType[1] > 0);
+	assert(numShaderFilesType[0] > 0 || numShaderFilesType[1] > 0 || numShaderFilesType[2] > 0);
 	sum = 0;
 	// load and parse shader files
-	for ( type = 0, j = 0; type < 2; type++ ) {
+	for ( type = 0, j = 0; type < 3; type++ ) {
 		for ( i = 0; i < numShaderFilesType[type]; i++, j++ )
 		{
 			char filename[MAX_QPATH];
@@ -3044,6 +3081,7 @@ static void ScanAndLoadShaderFiles( const char *path )
 	// free up memory
 	ri.FS_FreeFileList( shaderFiles[0] );
 	ri.FS_FreeFileList( shaderFiles[1] );
+	ri.FS_FreeFileList( shaderFiles[2] );
 
 	Com_Memset(shaderTextHashTableSizes, 0, sizeof(shaderTextHashTableSizes));
 	size = 0;
@@ -3144,7 +3182,11 @@ static inline const int *R_FindLightmap( const int *lightmapIndex )
 	return lightmapIndex;
 }
 
+#ifdef USE_JK2_SHADER_REMAP
 shader_t *R_FindShader( const char *name, const int *lightmapIndex, const byte *styles, qboolean mipRawImage, qboolean isAdvancedRemap )
+#else
+shader_t *R_FindShader( const char *name, const int *lightmapIndex, const byte *styles, qboolean mipRawImage )
+#endif
 {
 	char		strippedName[MAX_QPATH];
 	int			hash;
@@ -3171,7 +3213,11 @@ shader_t *R_FindShader( const char *name, const int *lightmapIndex, const byte *
 
 	hash = generateHashValue(strippedName, FILE_HASH_SIZE);
 
+#ifdef USE_JK2_SHADER_REMAP
+	sh = isAdvancedRemap ? advancedRemapShadersHashTable[hash] : hashTable[hash];
+#else
 	sh = hashTable[hash];
+#endif
 	while (sh)
 	{
 		// NOTE: if there was no shader or image available with the name strippedName
@@ -3190,7 +3236,9 @@ shader_t *R_FindShader( const char *name, const int *lightmapIndex, const byte *
 	// clear the global shader
 	InitShader(strippedName, lightmapIndex, styles);
 
+#ifdef USE_JK2_SHADER_REMAP
 	shader.isAdvancedRemap = isAdvancedRemap;
+#endif
 
 	//
 	// attempt to define shader from an explicit parameter file
@@ -3233,7 +3281,8 @@ shader_t *R_FindShader( const char *name, const int *lightmapIndex, const byte *
 		if (!image) {
 			vk_debug("shader [%s] image not found, fallback to default shader\n", name);
 			setDefaultShader();
-			return FinishShader();
+			//return FinishShader();
+			image = tr.defaultImage;
 		}
 	}
 
@@ -3242,9 +3291,11 @@ shader_t *R_FindShader( const char *name, const int *lightmapIndex, const byte *
 	return FinishShader();
 }
 
+#ifdef USE_JK2_SHADER_REMAP
 shader_t *R_FindAdvancedRemapShader( const char *name, const int *lightmapIndex, const byte *styles, qboolean mipRawImage ) {
 	return R_FindShader( name, lightmapIndex, styles, mipRawImage, qtrue );
 }
+#endif
 
 shader_t *R_FindServerShader( const char *name, const int *lightmapIndex, const byte *styles, qboolean mipRawImage )
 {
@@ -4705,8 +4756,12 @@ shader_t *GeneratePermanentShader( void )
 	shader_t	*newShader;
 	int			i, b, size;
 
+#ifdef USE_JK2_SHADER_REMAP
+	if ( (!shader.isAdvancedRemap && tr.numShaders == MAX_SHADERS) || (shader.isAdvancedRemap && tr.numAdvancedRemapShaders == MAX_SHADERS) ) {
+#else
 	if ( tr.numShaders == MAX_SHADERS ) {
-		vk_debug("WARNING: GeneratePermanentShader - MAX_SHADERS hit\n");
+#endif
+		ri.Printf( PRINT_WARNING, "WARNING: GeneratePermanentShader - MAX_SHADERS hit\n");
 		return tr.defaultShader;
 	}
 
@@ -4714,13 +4769,22 @@ shader_t *GeneratePermanentShader( void )
 
 	*newShader = shader;
 
-	tr.shaders[tr.numShaders] = newShader;
-	newShader->index = tr.numShaders;
+#ifdef USE_JK2_SHADER_REMAP
+	if ( newShader->isAdvancedRemap ) {
+		// If the shader has been created by the advanced remaps system we store it in a separate list
+		tr.advancedRemapShaders[ tr.numAdvancedRemapShaders ] = newShader;
+		tr.numAdvancedRemapShaders++;
+	} else 
+#endif
+	{
+		tr.shaders[tr.numShaders] = newShader;
+		newShader->index = tr.numShaders;
 
-	tr.sortedShaders[tr.numShaders] = newShader;
-	newShader->sortedIndex = tr.numShaders;
+		tr.sortedShaders[tr.numShaders] = newShader;
+		newShader->sortedIndex = tr.numShaders;
 
-	tr.numShaders++;
+		tr.numShaders++;
+	}
 
 	for ( i = 0; i < newShader->numUnfoggedPasses; i++ )
 	{
@@ -4746,11 +4810,21 @@ shader_t *GeneratePermanentShader( void )
 		}
 	}
 
-	SortNewShader();
-
 	const int hash = generateHashValue(newShader->name, FILE_HASH_SIZE);
-	newShader->next = hashTable[hash];
-	hashTable[hash] = newShader;
+
+#ifdef USE_JK2_SHADER_REMAP
+	if ( newShader->isAdvancedRemap ) {
+		// We want to keep the advanced remaps separate
+		newShader->next = advancedRemapShadersHashTable[hash];
+		advancedRemapShadersHashTable[hash] = newShader;
+	} else 
+#endif
+	{	
+		SortNewShader();
+
+		newShader->next = hashTable[hash];
+		hashTable[hash] = newShader;
+	}
 
 	return newShader;
 }
@@ -4846,7 +4920,9 @@ static void CreateInternalShaders( void )
 	vk_debug("CreateInternalShaders\n");
 
 	tr.numShaders = 0;
-
+#ifdef USE_JK2_SHADER_REMAP
+	tr.numAdvancedRemapShaders = 0;
+#endif
 	// init the default shader
 	InitShader("<default>", lightmapsNone, stylesDefault);
 	stages[0].bundle[0].image[0] = tr.defaultImage;
@@ -4911,13 +4987,13 @@ static void CreateInternalShaders( void )
 static void CreateExternalShaders( void )
 {
 	vk_debug("CreateExternalShaders\n");
-	tr.projectionShadowShader = R_FindShader("projectionShadow", lightmapsNone, stylesDefault, qtrue, qtrue);
+	tr.projectionShadowShader = R_FindShader("projectionShadow", lightmapsNone, stylesDefault, qtrue);
 	tr.projectionShadowShader->sort = SS_BANNER;
 	// investigate why default sort order gives issues with saber sort order.
 	//tr.projectionShadowShader->sort = SS_STENCIL_SHADOW;
 
-	//tr.flareShader = R_FindShader("flareShader", lightmapsNone, stylesDefault, qtrue, qtrue);
-	tr.flareShader = R_FindShader("gfx/misc/Flareparticle", lightmapsNone, stylesDefault, qtrue, qtrue);
+	//tr.flareShader = R_FindShader("flareShader", lightmapsNone, stylesDefault, qtrue);
+	tr.flareShader = R_FindShader("gfx/misc/Flareparticle", lightmapsNone, stylesDefault, qtrue);
 
 	// Hack to make fogging work correctly on flares. Fog colors are calculated
 	// in tr_flare.c already.
@@ -4932,7 +5008,7 @@ static void CreateExternalShaders( void )
 		}
 	}
 
-	tr.sunShader = R_FindShader("sun", lightmapsNone, stylesDefault, qtrue, qtrue);
+	tr.sunShader = R_FindShader("sun", lightmapsNone, stylesDefault, qtrue);
 }
 
 void R_InitShaders( qboolean server )
@@ -4940,9 +5016,12 @@ void R_InitShaders( qboolean server )
 
 	vk_debug("Initializing Shaders\n");
 
-	memset(hashTable, 0, sizeof(hashTable));
+	memset( hashTable, 0, sizeof(hashTable) );
+#ifdef USE_JK2_SHADER_REMAP
+	memset( advancedRemapShadersHashTable, 0, sizeof(advancedRemapShadersHashTable) );
+#endif
 
-	if (!server)
+	if ( !server )
 	{
 		CreateInternalShaders();
 

@@ -39,10 +39,19 @@ to overflow.
 ==============
 */
 void RB_BeginSurface( shader_t *shader, int fogNum ) {
+#ifdef USE_JK2_SHADER_REMAP	
+	shader_t *state = (shader->remappedShaderAdvanced ? shader->remappedShaderAdvanced : (shader->remappedShader ? shader->remappedShader : shader));
+	if ( state->defaultShader ) state = tr.defaultShader;
+#else
 	shader_t *state = (shader->remappedShader) ? shader->remappedShader : shader;
+#endif
 
 #ifdef USE_VBO
+#ifdef USE_JK2_SHADER_REMAP	
+	if (shader->isStaticShader && !shader->remappedShader && !shader->remappedShaderAdvanced) {
+#else
 	if (shader->isStaticShader && !shader->remappedShader) {
+#endif
 		tess.allowVBO = qtrue;
 	}
 	else {

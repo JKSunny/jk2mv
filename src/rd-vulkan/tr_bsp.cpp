@@ -512,12 +512,14 @@ static shader_t *ShaderForShaderNum( int shaderNum, const int *lightmapNum, cons
 		styles = vertexStyles;
 	}
 
-	shader = R_FindShader( dsh->shader, lightmapNum, styles, qtrue, qtrue );
+	shader = R_FindShader( dsh->shader, lightmapNum, styles, qtrue );
 
+#ifndef USE_JK2_SHADER_REMAP
 	// if the shader had errors, just use default shader
 	if ( shader->defaultShader ) {
 		return tr.defaultShader;
 	}
+#endif
 
 	return shader;
 }
@@ -2019,7 +2021,7 @@ static	void R_LoadFogs( const lump_t *l, const lump_t *brushesLump, lump_t *side
 		}
 
 		// get information from the shader for fog parameters
-		shader = R_FindShader( fogs->shader, lightmaps, stylesDefault, qtrue, qtrue );
+		shader = R_FindShader( fogs->shader, lightmaps, stylesDefault, qtrue );
 
 
 		if (!shader->fogParms)
