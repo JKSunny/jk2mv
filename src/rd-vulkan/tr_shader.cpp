@@ -1298,8 +1298,11 @@ static qboolean ParseStage(shaderStage_t *stage, const char **text)
 				if (shader.noLightScale)
 					flags |= IMGFLAG_NOLIGHTSCALE;
 
+#ifdef USE_JK2_SHADER_TEXTURE_MODE
+				stage->bundle[0].image[0] = R_FindImageFile(token, flags, shader.textureMode);
+#else
 				stage->bundle[0].image[0] = R_FindImageFile(token, flags);
-
+#endif
 
 				if (!stage->bundle[0].image[0])
 				{
@@ -1347,7 +1350,11 @@ static qboolean ParseStage(shaderStage_t *stage, const char **text)
 			if (shader.noLightScale)
 				flags |= IMGFLAG_NOLIGHTSCALE;
 
+#ifdef USE_JK2_SHADER_TEXTURE_MODE
+			stage->bundle[0].image[0] = R_FindImageFile(token, flags, shader.textureMode);
+#else
 			stage->bundle[0].image[0] = R_FindImageFile(token, flags);
+#endif
 
 			if (!stage->bundle[0].image[0])
 			{
@@ -1404,7 +1411,12 @@ static qboolean ParseStage(shaderStage_t *stage, const char **text)
 					if( bClamp )
 						flags |= IMGFLAG_CLAMPTOEDGE;
 
+#ifdef USE_JK2_SHADER_TEXTURE_MODE
+					images[num] = R_FindImageFile( token, flags, shader.textureMode );
+#else
 					images[num] = R_FindImageFile( token, flags );
+#endif
+
 					if ( !images[num] )
 					{
 						ri.Printf( PRINT_WARNING, "WARNING: R_FindImageFile could not find '%s' in shader '%s'\n", token, shader.name );
@@ -2657,10 +2669,15 @@ static qboolean ParseShader( const char **text )
 			continue;
 		}
 		// no mip maps
+#ifdef USE_JK2
 		else if ( !Q_stricmp( token, "uielement" ) || !Q_stricmp(token, "nomipmaps") )
 		{
 			shader.noMipMaps = 1;
 			shader.noPicMip = 1;
+			shader.noLightScale = 1;
+#ifdef USE_JK2_SHADER_TEXTURE_MODE
+			shader.textureMode = GetTextureMode( "GL_LINEAR" );
+#endif
 			continue;
 		}
 		// for high resolution UI elements
@@ -2670,6 +2687,14 @@ static qboolean ParseShader( const char **text )
 			shader.noLightScale = 1;
 			continue;
 		}
+#else 
+		else if ( !Q_stricmp(token, "nomipmaps") )
+		{
+			shader.noMipMaps = 1;
+			shader.noPicMip = 1;
+			continue;
+		}
+#endif
 		// no picmip adjustment
 		else if (!Q_stricmp(token, "nopicmip"))
 		{
@@ -2692,14 +2717,23 @@ static qboolean ParseShader( const char **text )
 			shader.noTC = 1;
 			continue;
 		}
+#ifdef USE_JK2
 		// force texturemode, regardless of r_texturemode cvar value
 		else if ( !Q_stricmp( token, "texturemode" ) )
 		{
 			token = COM_ParseExt( text, qfalse );
-			// todo
-			//shader.textureMode = GetTextureMode(token);
+
+			// this is required to emulate OpenGL minification filters and set maxLod 0.25
+			// https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkSamplerCreateInfo.html#_description
+			if ( r_consoleFont->modified )
+				token = "GL_LINEAR";
+
+#ifdef USE_JK2_SHADER_TEXTURE_MODE
+			shader.textureMode = GetTextureMode( token );
+#endif
 			continue;
 		}
+#endif
 		// entityMergable, allowing sprite surfaces from multiple entities
 		// to be merged into one batch.  This is a savings for smoke
 		// puffs and blood, but can't be used for anything where the

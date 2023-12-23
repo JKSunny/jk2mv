@@ -37,11 +37,6 @@ static image_t *hashTable[FILE_HASH_SIZE];
 int		gl_filter_min = GL_LINEAR_MIPMAP_NEAREST;
 int		gl_filter_max = GL_LINEAR;
 
-typedef struct textureMode_s {
-	const char *name;
-	int	minimize, maximize;
-} textureMode_t;
-
 textureMode_t modes[] = {
 	{"GL_NEAREST", GL_NEAREST, GL_NEAREST},
 	{"GL_LINEAR", GL_LINEAR, GL_LINEAR},
@@ -53,18 +48,30 @@ textureMode_t modes[] = {
 
 void vk_update_descriptor_set( image_t *image, qboolean mipmap );
 
+/*
+=================
+GetTextureMode
+=================
+*/
+textureMode_t *GetTextureMode( const char *name )
+{
+	size_t i;
+
+	for ( i = 0; i < ARRAY_LEN( modes ); i++ ) {
+		if ( !Q_stricmp( modes[i].name, name ) ) {
+			return &modes[i];
+		}
+	}
+
+	return NULL;
+}
+
 void vk_texture_mode( const char *string, const qboolean init ) {
 	const textureMode_t *mode;
 	image_t	*img;
 	uint32_t		i;
 	
-	mode = NULL;
-	for ( i = 0 ; i < ARRAY_LEN( modes ) ; i++ ) {
-		if ( !Q_stricmp( modes[i].name, string ) ) {
-			mode = &modes[i];
-			break;
-		}
-	}
+	mode = GetTextureMode( string );
 
 	if ( mode == NULL ) {
 		ri.Printf( PRINT_ALL, "bad texture filter name '%s'\n", string );
@@ -82,6 +89,12 @@ void vk_texture_mode( const char *string, const qboolean init ) {
 	vk_wait_idle();
 	for ( i = 0 ; i < tr.numImages ; i++ ) {
 		img = tr.images[i];
+
+#ifdef USE_JK2_SHADER_TEXTURE_MODE
+		if ( img->textureMode && img->flags & IMGFLAG_MIPMAP )
+			continue;
+#endif
+
 		if ( img->flags & IMGFLAG_MIPMAP ) {
 			vk_update_descriptor_set( img, qtrue );
 		}
@@ -847,9 +860,19 @@ void vk_update_descriptor_set( image_t *image, qboolean mipmap ) {
 	sampler_def.address_mode = image->wrapClampMode;
 
 	if (mipmap) {
-		sampler_def.gl_mag_filter = gl_filter_max;
-		sampler_def.gl_min_filter = gl_filter_min;
+#ifdef USE_JK2_SHADER_TEXTURE_MODE
+		if ( image->textureMode ) {
+			sampler_def.gl_mag_filter = image->textureMode->maximize;
+			sampler_def.gl_min_filter = image->textureMode->minimize;
+		} 
+		else
+#endif
+		{
+			sampler_def.gl_mag_filter = gl_filter_max;
+			sampler_def.gl_min_filter = gl_filter_min;
+		}
 	}
+
 	else {
 		sampler_def.gl_mag_filter = GL_LINEAR;
 		sampler_def.gl_min_filter = GL_LINEAR;
@@ -992,7 +1015,13 @@ void vk_delete_textures( void ) {
 	Com_Memset(glState.currenttextures, 0, sizeof(glState.currenttextures));
 }
 
-image_t *R_CreateImage( const char *name, byte *pic, int width, int height, imgFlags_t flags ){
+#ifdef USE_JK2_SHADER_TEXTURE_MODE
+image_t *R_CreateImage( const char *name, byte *pic, int width, int height, imgFlags_t flags, const textureMode_t *textureMode )
+#else
+image_t *R_CreateImage( const char *name, byte *pic, int width, int height, imgFlags_t flags )
+#endif
+{
+
     image_t				*image;
     int					namelen;
     long				hash;
@@ -1048,6 +1077,10 @@ image_t *R_CreateImage( const char *name, byte *pic, int width, int height, imgF
 		image->flags &= ~(IMGFLAG_PICMIP);
 	}
 
+#ifdef USE_JK2_SHADER_TEXTURE_MODE
+    image->textureMode = textureMode;
+#endif
+
     vk_upload_image( image, pic );
 	
 #if 0
@@ -1059,7 +1092,12 @@ image_t *R_CreateImage( const char *name, byte *pic, int width, int height, imgF
     return image;
 }
 
+ 
+#ifdef USE_JK2_SHADER_TEXTURE_MODE
+image_t *R_FindImageFile( const char *name, imgFlags_t flags, const textureMode_t *textureMode ){
+#else
 image_t *R_FindImageFile( const char *name, imgFlags_t flags ){
+#endif
         image_t		*image;
         int			width, height;
         byte		*pic;
@@ -1127,7 +1165,12 @@ image_t *R_FindImageFile( const char *name, imgFlags_t flags ){
             }
 		}
 
-        image = R_CreateImage(name, pic, width, height, flags);
+#ifdef USE_JK2_SHADER_TEXTURE_MODE
+        image = R_CreateImage( name, pic, width, height, flags, textureMode );
+#else
+        image = R_CreateImage( name, pic, width, height, flags );
+#endif
+
         Z_Free(pic);
         return image;
 }

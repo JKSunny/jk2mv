@@ -27,6 +27,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define USE_JK2
 #if defined ( USE_JK2 )
 	#define USE_JK2_SHADER_REMAP
+	#define USE_JK2_SHADER_TEXTURE_MODE
+	#define USE_JK2_CONSOLE_FONT
 #endif
 
 
@@ -210,6 +212,13 @@ typedef struct orientationr_s {
 	float		modelMatrix[16];
 } orientationr_t;
 
+typedef struct textureMode_s {
+	const char *name;
+	int	minimize, maximize;
+} textureMode_t;
+
+extern	int	gl_filter_min, gl_filter_max;
+
 typedef enum
 {
 	IMGFLAG_NONE			= 0x0000,
@@ -267,6 +276,11 @@ typedef struct image_s {
 	qboolean				isLightmap;
 	uint32_t				mipLevels;		// gl texture binding
 	VkSamplerAddressMode	wrapClampMode;	
+
+#ifdef USE_JK2_SHADER_TEXTURE_MODE	
+	const					textureMode_t *textureMode;	// NULL = follow r_texturemode
+#endif
+
 } image_t;
 
 //===============================================================================
@@ -607,15 +621,22 @@ typedef struct shader_s {
 	unsigned	noLightScale:1;
 	unsigned	noTC:1;								// for images that don't want to be texture compressed (eg skies)
 
+#ifdef USE_JK2_SHADER_TEXTURE_MODE	
+	const		textureMode_t *textureMode;			// NULL = follow r_texturemode
+#endif
+
 	fogPass_t	fogPass;							// draw a blended pass, possibly with depth test equals
 
 	qboolean	fogCollapse;
 	int			tessFlags;
 	
-	qboolean	isAdvancedRemap;
-
 	struct shader_s *remappedShader;                  // current shader this one is remapped too
+
+#ifdef USE_JK2_SHADER_REMAP
+	qboolean		isAdvancedRemap;
 	struct shader_s *remappedShaderAdvanced;          // current shader from the advanced remaps this one is remapped to
+
+#endif
 
 	shaderStage_t	*stages[MAX_SHADER_STAGES];
 	deformStage_t	*deforms[MAX_SHADER_DEFORMS];
@@ -1151,8 +1172,6 @@ the bits are allocated as follows:
 	#error "Need to update sorting, too many bits."
 #endif
 #define QSORT_REFENTITYNUM_MASK ( REFENTITYNUM_MASK << QSORT_REFENTITYNUM_SHIFT )
-
-extern	int	gl_filter_min, gl_filter_max;
 
 /*
 ** performanceCounters_t
@@ -1693,9 +1712,11 @@ extern	cvar_t	*r_noServerGhoul2;
 Ghoul2 Insert End
 */
 
+#ifdef USE_JK2
 extern	cvar_t *r_consoleFont;
 extern	cvar_t *r_fontSharpness;
 extern	cvar_t *r_newRemaps;;
+#endif
 
 //====================================================================
 
@@ -1754,9 +1775,15 @@ model_t		*R_AllocModel( void );
 void    	R_Init( void );
 void		R_LoadImage( const char *name, byte **pic, int *width, int *height );
 
+#ifdef USE_JK2_SHADER_TEXTURE_MODE
+image_t		*R_FindImageFile( const char *name, imgFlags_t flags, const textureMode_t *textureMode = NULL );
+image_t		*R_CreateImage( const char *name, byte *pic, int width, int height, imgFlags_t flags, const textureMode_t *textureMode = NULL );
+#else
 image_t		*R_FindImageFile( const char *name, imgFlags_t flags );
 image_t		*R_CreateImage( const char *name, byte *pic, int width, int height, imgFlags_t flags );
+#endif
 
+textureMode_t *GetTextureMode( const char *name );
 qboolean	R_GetModeInfo( int *width, int *height, int mode );
 
 void		R_SetColorMappings( void );
