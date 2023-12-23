@@ -618,7 +618,14 @@ const void *RB_StretchPic ( const void *data ) {
 	cmd = (const stretchPicCommand_t *)data;
 	
 	shader = cmd->shader;
-	if ( shader != tess.shader ) {
+
+#ifdef USE_JK2
+	if ( shader != tess.shader && 
+		 !( tess.shader && shader->remappedShader && shader->remappedShader == tess.shader ) ) 
+#else
+	if ( shader != tess.shader ) 
+#endif
+	{
 		if ( tess.numIndexes ) {
 			RB_EndSurface();
 		}
