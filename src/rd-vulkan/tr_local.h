@@ -2267,7 +2267,7 @@ typedef struct {
 } ss_input;
 
 void R_BindAnimatedImage(const textureBundle_t *bundle);
-//void RB_DrawSurfaceSprites(const shaderStage_t *stage, const ss_input *input);
+void RB_DrawSurfaceSprites(const shaderStage_t *stage, const ss_input *input);
 
 qboolean ShaderHashTableExists(void);
 

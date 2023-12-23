@@ -1,1890 +1,2307 @@
-#if 0
-/*
-===========================================================================
-Copyright (C) 2000 - 2013, Raven Software, Inc.
-Copyright (C) 2001 - 2013, Activision, Inc.
-Copyright (C) 2013 - 2015, OpenJK contributors
-
-This file is part of the OpenJK source code.
-
-OpenJK is free software; you can redistribute it and/or modify it
-under the terms of the GNU General Public License version 2 as
-published by the Free Software Foundation.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, see <http://www.gnu.org/licenses/>.
-===========================================================================
-*/
-
-////////////////////////////////////////////////////////////////////////////////////////
-// RAVEN SOFTWARE - STAR WARS: JK II
-//  (c) 2002 Activision
-//
-// World Effects
-//
-//
-////////////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////////////
-// Includes
-////////////////////////////////////////////////////////////////////////////////////////
-
 #include "tr_local.h"
+
+//#include "stdafx.h"
+//#include "q_math.h"
+//#include "QSupport.h"
+
 #include "tr_WorldEffects.h"
 
-#include "Ravl/CVec.h"
-#include "Ratl/vector_vs.h"
-#include "Ratl/bits_vs.h"
-
-////////////////////////////////////////////////////////////////////////////////////////
-// Defines
-////////////////////////////////////////////////////////////////////////////////////////
-#define GLS_ALPHA				(GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA)
-#define	MAX_WIND_ZONES			10
-#define MAX_WEATHER_ZONES		10
-#define	MAX_PUFF_SYSTEMS		2
-#define	MAX_PARTICLE_CLOUDS		5
-
-#define POINTCACHE_CELL_SIZE	96.0f
-
-
-////////////////////////////////////////////////////////////////////////////////////////
-// Globals
-////////////////////////////////////////////////////////////////////////////////////////
-float		mMillisecondsElapsed = 0;
-float		mSecondsElapsed = 0;
-bool		mFrozen = false;
-
-CVec3		mGlobalWindVelocity;
-CVec3		mGlobalWindDirection;
-float		mGlobalWindSpeed;
-int			mParticlesRendered;
 
 
 
-////////////////////////////////////////////////////////////////////////////////////////
-// Handy Functions
-////////////////////////////////////////////////////////////////////////////////////////
-// Returns a float min <= x < max (exclusive; will get max - 0.00001; but never max)
-inline float WE_flrand(float min, float max) {
-	return ((rand() * (max - min)) / (RAND_MAX)) + min;
-}
+static bool debugShowWind = false;
+static int	originContents;
 
-////////////////////////////////////////////////////////////////////////////////////////
-// Externs & Fwd Decl.
-////////////////////////////////////////////////////////////////////////////////////////
-inline void VectorFloor(vec3_t in)
+extern qboolean ParseVector( const char **text, int count, float *v );
+
+
+
+void MYgluPerspective( double fovy, double aspect, double zNear, double zFar )
 {
-	in[0] = floorf(in[0]);
-	in[1] = floorf(in[1]);
-	in[2] = floorf(in[2]);
-}
+	double xmin, xmax, ymin, ymax;
 
-inline void VectorCeil(vec3_t in)
-{
-	in[0] = ceilf(in[0]);
-	in[1] = ceilf(in[1]);
-	in[2] = ceilf(in[2]);
-}
+	ymax = zNear * tanf( DEG2RAD(fovy * 0.5f) );
+	ymin = -ymax;
 
-inline float	FloatRand(void)
-{
-	return ((float)rand() / (float)RAND_MAX);
-}
+	xmin = ymin * aspect;
+	xmax = ymax * aspect;
 
-inline	void	SnapFloatToGrid(float& f, int GridSize)
-{
-	f = (int)(f);
-
-	bool	fNeg		= (f<0);
-	if (fNeg)
-	{
-		f *= -1;		// Temporarly make it positive
-	}
-
-	int		Offset		= ((int)(f) % (int)(GridSize));
-	int		OffsetAbs	= abs(Offset);
-	if (OffsetAbs>(GridSize/2))
-	{
-		Offset = (GridSize - OffsetAbs) * -1;
-	}
-
-	f -= Offset;
-
-	if (fNeg)
-	{
-		f *= -1;		// Put It Back To Negative
-	}
-
-	f = (int)(f);
-
-	assert(((int)(f)%(int)(GridSize)) == 0);
-}
-
-inline	void	SnapVectorToGrid(CVec3& Vec, int GridSize)
-{
-	SnapFloatToGrid(Vec[0], GridSize);
-	SnapFloatToGrid(Vec[1], GridSize);
-	SnapFloatToGrid(Vec[2], GridSize);
+	//qglFrustum( xmin, xmax, ymin, ymax, zNear, zFar );
+	// create a matrix to multiply with current matrix with
 }
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////////////
-// Range Structures
-////////////////////////////////////////////////////////////////////////////////////////
-struct	SVecRange
+CWorldEffect::CWorldEffect(CWorldEffect *owner) :
+	mNext(0),
+	mSlave(0),
+	mOwner(owner),
+	mEnabled(true),
+	mIsSlave(owner ? true : false)
 {
-	CVec3	mMins;
-	CVec3	mMaxs;
+}
 
-	inline void	Clear()
-	{
-		mMins.Clear();
-		mMaxs.Clear();
-	}
-
-	inline void Pick(CVec3& V)
-	{
-		V[0] = WE_flrand(mMins[0], mMaxs[0]);
-		V[1] = WE_flrand(mMins[1], mMaxs[1]);
-		V[2] = WE_flrand(mMins[2], mMaxs[2]);
-	}
-	inline void Wrap(CVec3& V, SVecRange &spawnRange)
-	{
-		if (V[0]<mMins[0])
-		{
-			const float d = mMins[0]-V[0];
-			V[0] = mMaxs[0]-fmod(d, mMaxs[0]-mMins[0]);
-		}
-		if (V[0]>mMaxs[0])
-		{
-			const float d = V[0]-mMaxs[0];
-			V[0] = mMins[0]+fmod(d, mMaxs[0]-mMins[0]);
-		}
-
-		if (V[1]<mMins[1])
-		{
-			const float d = mMins[1]-V[1];
-			V[1] = mMaxs[1]-fmod(d, mMaxs[1]-mMins[1]);
-		}
-		if (V[1]>mMaxs[1])
-		{
-			const float d = V[1]-mMaxs[1];
-			V[1] = mMins[1]+fmod(d, mMaxs[1]-mMins[1]);
-		}
-
-		if (V[2]<mMins[2])
-		{
-			const float d = mMins[2]-V[2];
-			V[2] = mMaxs[2]-fmod(d, mMaxs[2]-mMins[2]);
-		}
-		if (V[2]>mMaxs[2])
-		{
-			const float d = V[2]-mMaxs[2];
-			V[2] = mMins[2]+fmod(d, mMaxs[2]-mMins[2]);
-		}
-	}
-
-	inline bool In(const CVec3& V)
-	{
-		return (V>mMins && V<mMaxs);
-	}
-};
-
-struct	SFloatRange
+CWorldEffect::~CWorldEffect(void)
 {
-	float	mMin;
-	float	mMax;
+	if (mIsSlave && mNext)
+	{
+		delete mNext;
+		mNext = 0;
+	}
+	if (mSlave)
+	{
+		delete mSlave;
+		mSlave = 0;
+	}
+}
 
-	inline void	Clear()
-	{
-		mMin = 0;
-		mMin = 0;
-	}
-	inline void Pick(float& V)
-	{
-		V = WE_flrand(mMin, mMax);
-	}
-	inline bool In(const float& V)
-	{
-		return (V>mMin && V<mMax);
-	}
-};
 
-struct	SIntRange
+bool CWorldEffect::Command(const char *command)
 {
-	int	mMin;
-	int	mMax;
-
-	inline void	Clear()
+	if (mSlave)
 	{
-		mMin = 0;
-		mMin = 0;
+		if (mSlave->Command(command))
+		{
+			return true;
+		}
 	}
-	inline void Pick(int& V)
+	if (mIsSlave && mNext)
 	{
-		V = Q_irand(mMin, mMax);
+		if (mNext->Command(command))
+		{
+			return true;
+		}
 	}
-	inline bool In(const int& V)
-	{
-		return (V>mMin && V<mMax);
-	}
-};
 
+	return false;
+}
 
-
-
-
-////////////////////////////////////////////////////////////////////////////////////////
-// The Particle Class
-////////////////////////////////////////////////////////////////////////////////////////
-class	CWeatherParticle
+void CWorldEffect::ParmUpdate(CWorldEffectsSystem *system, int which)
 {
+	if (mSlave)
+	{
+		mSlave->ParmUpdate(system, which);
+	}
+	if (mIsSlave && mNext)
+	{
+		mNext->ParmUpdate(system, which);
+	}
+}
+
+void CWorldEffect::ParmUpdate(CWorldEffect *effect, int which)
+{
+	if (mSlave)
+	{
+		mSlave->ParmUpdate(effect, which);
+	}
+	if (mIsSlave && mNext)
+	{
+		mNext->ParmUpdate(effect, which);
+	}
+}
+
+void CWorldEffect::SetVariable(int which, bool newValue, bool doSlave)
+{
+	if (doSlave)
+	{
+		mSlave->SetVariable(which, newValue, doSlave);
+	}
+	if (doSlave && mIsSlave && mNext)
+	{
+		mNext->SetVariable(which, newValue, doSlave);
+	}
+
+	switch(which)
+	{
+		case WORLDEFFECT_ENABLED:
+			mEnabled = newValue;
+			break;
+	}
+}
+
+void CWorldEffect::SetVariable(int which, float newValue, bool doSlave)
+{
+	if (doSlave)
+	{
+		mSlave->SetVariable(which, newValue, doSlave);
+	}
+	if (doSlave && mIsSlave && mNext)
+	{
+		mNext->SetVariable(which, newValue, doSlave);
+	}
+}
+
+void CWorldEffect::SetVariable(int which, int newValue, bool doSlave)
+{
+	if (doSlave)
+	{
+		mSlave->SetVariable(which, newValue, doSlave);
+	}
+	if (doSlave && mIsSlave && mNext)
+	{
+		mNext->SetVariable(which, newValue, doSlave);
+	}
+}
+
+void CWorldEffect::SetVariable(int which, vec3_t newValue, bool doSlave)
+{
+	if (doSlave)
+	{
+		mSlave->SetVariable(which, newValue, doSlave);
+	}
+	if (doSlave && mIsSlave && mNext)
+	{
+		mNext->SetVariable(which, newValue, doSlave);
+	}
+}
+
+void CWorldEffect::AddSlave(CWorldEffect *slave)
+{
+	slave->SetNext(mSlave);
+	mSlave = slave;
+
+	slave->SetIsSlave(true);
+	slave->SetOwner(this);
+}
+
+void CWorldEffect::Update(CWorldEffectsSystem *system, float elapseTime)
+{
+	if (mSlave && mEnabled)
+	{
+		mSlave->Update(system, elapseTime);
+	}
+	if (mIsSlave && mNext)
+	{
+		mNext->Update(system, elapseTime);
+	}
+}
+
+void CWorldEffect::Render(CWorldEffectsSystem *system)
+{
+	if (mSlave && mEnabled)
+	{
+		mSlave->Render(system);
+	}
+	if (mIsSlave && mNext)
+	{
+		mNext->Render(system);
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+CWorldEffectsSystem::CWorldEffectsSystem(void) :
+	mList(0),
+	mLast(0)
+{
+}
+
+CWorldEffectsSystem::~CWorldEffectsSystem(void)
+{
+	CWorldEffect	*next;
+
+	while(mList)
+	{
+		next = mList->GetNext();
+		delete mList;
+		mList = next;
+	}
+}
+
+void CWorldEffectsSystem::AddWorldEffect(CWorldEffect *effect)
+{
+	if (!mList)
+	{
+		mList = mLast = effect;
+	}
+	else
+	{
+		mLast->SetNext(effect);
+		mLast = effect;
+	}
+}
+
+bool CWorldEffectsSystem::Command(const char *command)
+{
+	CWorldEffect	*current;
+
+	current = mList;
+	while(current)
+	{
+		if (current->Command(command))
+		{
+			return true;
+		}
+		current = current->GetNext();
+	}
+
+	return false;
+}
+
+void CWorldEffectsSystem::Update(float elapseTime)
+{
+	CWorldEffect	*current;
+
+	current = mList;
+	while(current)
+	{
+		current->Update(this, elapseTime);
+		current = current->GetNext();
+	}
+}
+
+void CWorldEffectsSystem::ParmUpdate(int which)
+{
+	CWorldEffect	*current;
+
+	current = mList;
+	while(current)
+	{
+		current->ParmUpdate(this, which);
+		current = current->GetNext();
+	}
+}
+
+void CWorldEffectsSystem::Render(void)
+{
+	CWorldEffect	*current;
+
+	current = mList;
+	while(current)
+	{
+		current->Render(this);
+		current = current->GetNext();
+	}
+}
+
+
+
+
+
+
+
+
+
+class CRainSystem : public CWorldEffectsSystem
+{
+private:
+	// configurable
+	int			mMaxRain;
+	float		mRainHeight;
+	vec3_t		mSpread;
+	float		mAlpha;
+	float		mWindAngle;
+
+	image_t		*mImage;
+	vec3_t		mMinVelocity, mMaxVelocity;
+	// int			mNextWindGust;
+	int mWindDuration, mWindLow;
+	float		mWindMin, mWindMax;
+	vec3_t		mWindDirection, mNewWindDirection, mWindSpeed;
+	int			mWindChange;
+
+	SParticle	*mRainList;
+	float		mFadeAlpha;
+	bool		mIsRaining;
+
 public:
 	enum
 	{
-		FLAG_RENDER = 0,
-
-		FLAG_FADEIN,
-		FLAG_FADEOUT,
-		FLAG_RESPAWN,
-
-		FLAG_MAX
+		RAINSYSTEM_WIND_DIRECTION,
+		RAINSYSTEM_WIND_SPEED,
 	};
-	typedef		ratl::bits_vs<FLAG_MAX>		TFlags;
 
-	float	mAlpha;
-	TFlags	mFlags;
-	CVec3	mPosition;
-	CVec3	mVelocity;
-	float	mMass;			// A higher number will more greatly resist force and result in greater gravity
+public:
+	CRainSystem(int maxRain);
+	~CRainSystem(void);
+
+	virtual	int			GetIntVariable(int which);
+	virtual	SParticle	*GetParticleVariable(int which);
+	virtual float		GetFloatVariable(int which);
+	virtual	float		*GetVecVariable(int which);
+
+	virtual	bool	Command(const char *command);
+
+	virtual	void	Update(float elapseTime);
+	virtual	void	Render(void);
+
+			void	Init(void);
+
+			bool	IsRaining() { return mIsRaining; }
+};
+
+
+
+
+class CMistyFog : public CWorldEffect
+{
+private:
+//	GLuint		mImage;
+//	image_t		*mImage;
+	float		mTextureCoords[2][2];
+	float		mAlpha;
+	bool		mAlphaFade, mRendering, mBuddy;
+	float		mSpeed, mAlphaDirection;
+	float		mCurrentSize, mMinSize, mMaxSize;
+	vec3_t		mWindTransform;
+
+	int				mWidth, mHeight;
+	unsigned char	*mData;
+
+	const	float	mSize;
+
+public:
+	enum
+	{
+		MISTYFOG_RENDERING = WORLDEFFECT_END
+	};
+
+public:
+	CMistyFog(int index, CWorldEffect *owner = 0, bool buddy = false);
+
+//			image_t	*GetImage(void) { return mImage; }
+
+			int				GetWidth(void) { return mWidth; }
+			int				GetHeight(void) { return mHeight; }
+			byte			*GetData(void) { return mData; }
+			float			GetTextureCoord(int s, int y) { return mTextureCoords[s][y]; }
+			float			GetAlpha(void) { return mAlpha; }
+			bool			GetRendering(void) { return mRendering; }
+
+	virtual	void	Update(CWorldEffectsSystem *system, float elapseTime);
+	virtual	void	ParmUpdate(CWorldEffectsSystem *system, int which);
+	virtual	void	ParmUpdate(CWorldEffect *effect, int which);
+	virtual	void	Render(CWorldEffectsSystem *system);
+
+			void	CreateTextureCoords(void);
+};
+
+CMistyFog::CMistyFog(int index, CWorldEffect *owner, bool buddy) :
+	CWorldEffect(owner),
+
+	mAlpha(1.0f),
+	mAlphaFade(false),
+	mBuddy(buddy),
+	mMinSize(0.05f * 3.0f),
+	mMaxSize(0.15f * 2.0f),
+	mSize(0.05f * 2.0f)
+{
+	char			name[MAX_QPATH];
+
+	if (mBuddy)
+	{
+		mRendering = false;
+
+//		mImage = ((CMistyFog *)owner)->GetImage();
+		mData = ((CMistyFog *)owner)->GetData();
+		mWidth = ((CMistyFog *)owner)->GetWidth();
+		mHeight = ((CMistyFog *)owner)->GetHeight();
+	}
+	else
+	{
+		Com_sprintf(name, MAX_QPATH, "gfx/world/fog%d", index);
+		R_LoadImage(name, &mData, &mWidth, &mHeight);
+		if (!mData)
+		{
+			ri.Error (ERR_DROP, "Could not load %s", name);
+		}
+
+		mRendering = true;
+		AddSlave(new CMistyFog(index, this, true));
+	}
+
+	mSpeed = flrand(90.0f, 110.0f);
+
+	CreateTextureCoords();
+}
+
+void CMistyFog::Update(CWorldEffectsSystem *system, float elapseTime)
+{
+	bool	removeImage = false;
+	float	forwardWind, rightWind;
+
+	CWorldEffect::Update(system, elapseTime);
+
+	if (!mRendering)
+	{
+		return;
+	}
+
+	// translate
+
+	forwardWind = DotProduct(mWindTransform, backEnd.viewParms.ori.axis[0]);
+	rightWind = DotProduct(mWindTransform, backEnd.viewParms.ori.axis[1]);
+
+	mTextureCoords[0][0] += rightWind / mSpeed;
+	mTextureCoords[1][0] += rightWind / mSpeed;
+
+	mTextureCoords[0][0] -= forwardWind / mSpeed / 4.0f;
+	mTextureCoords[0][1] -= forwardWind / mSpeed / 4.0f;
+	mTextureCoords[1][0] += forwardWind / mSpeed / 4.0f;
+	mTextureCoords[1][1] += forwardWind / mSpeed / 4.0f;
+
+/*	if (mTextureCoords[0][0] > mTextureCoords[1][0] ||
+		mTextureCoords[0][1] > mTextureCoords[1][1])
+	{
+
+		mAlphaFade = true;
+		mAlphaDirection = -1.0;
+		mAlpha = -1.0;
+	}
+*/
+	if ((fabsf(mTextureCoords[0][0] - mTextureCoords[1][0]) < mMinSize ||
+		fabsf(mTextureCoords[0][1] - mTextureCoords[1][1]) < mMinSize))// && forwardWind > 0.0)
+	{
+		removeImage = true;
+	}
+
+	if ((fabsf(mTextureCoords[0][0] - mTextureCoords[1][0]) > mMaxSize ||
+		fabsf(mTextureCoords[0][1] - mTextureCoords[1][1]) > mMaxSize))// && forwardWind < 0.0)
+	{
+		removeImage = true;
+	}
+
+	if (mTextureCoords[0][0] < mCurrentSize || mTextureCoords[0][1] < mCurrentSize ||
+		mTextureCoords[0][0] > 1-mCurrentSize || mTextureCoords[0][1] > 1-mCurrentSize)
+	{
+//		mAlphaFade = true;
+	}
+	if (mTextureCoords[1][0] < mCurrentSize || mTextureCoords[1][1] < mCurrentSize ||
+		mTextureCoords[1][0] > 1-mCurrentSize || mTextureCoords[1][1] > 1-mCurrentSize)
+	{
+//		mAlphaFade = true;
+	}
+
+	if (removeImage && !mAlphaFade)
+	{
+		mAlphaFade = true;
+		mAlphaDirection = -0.025f;
+		if (mBuddy)
+		{
+			mOwner->ParmUpdate(this, MISTYFOG_RENDERING);
+		}
+		else if (mSlave)
+		{
+			mSlave->ParmUpdate(this, MISTYFOG_RENDERING);
+		}
+	}
+
+	if (mAlphaFade)
+	{
+		mAlpha += mAlphaDirection * 0.4f;
+		if (mAlpha < 0.0f)
+		{
+			mRendering = false;
+			mAlpha = 0.0f;
+		}
+		else if (mAlpha >= 1.0f)
+		{
+			mAlphaFade = false;
+			mAlpha = 1.0f;
+		}
+	}
+}
+
+void CMistyFog::ParmUpdate(CWorldEffectsSystem *system, int which)
+{
+	CWorldEffect::ParmUpdate(system, which);
+
+	switch(which)
+	{
+		case CRainSystem::RAINSYSTEM_WIND_DIRECTION:
+			VectorCopy(system->GetVecVariable(which), mWindTransform);
+			break;
+	}
+}
+
+void CMistyFog::ParmUpdate(CWorldEffect *effect, int which)
+{
+	CWorldEffect::ParmUpdate(effect, which);
+
+	switch(which)
+	{
+		case MISTYFOG_RENDERING:
+			if (effect == mOwner || effect == mSlave)
+			{
+				mAlpha = 0.0f;
+				mAlphaDirection = 0.025f;
+				mAlphaFade = true;
+				CreateTextureCoords();
+				mRendering = true;
+			}
+			break;
+	}
+}
+
+void CMistyFog::Render(CWorldEffectsSystem *system)
+{
+	CWorldEffect::Render(system);
+
+/*	if (!mRendering)
+	{
+		return;
+	}
+
+	GL_Bind(mImage);
+	GL_State(GLS_SRCBLEND_SRC_ALPHA|GLS_DSTBLEND_ONE);
+
+//	qglColor4f(1.0, 1.0, 1.0, mAlpha*0.4);
+
+	if (mSlave)
+	{
+		qglColor4f(1.0, 0.0, 0.0, mAlpha);
+	}
+	else
+	{
+		qglColor4f(0.0, 1.0, 0.0, mAlpha);
+	}
+
+	qglBegin(GL_QUADS);
+	qglTexCoord2f(mTextureCoords[0][0], mTextureCoords[0][1]);
+	qglVertex3f(-10, 10, -10);
+
+	qglTexCoord2f(mTextureCoords[1][0], mTextureCoords[0][1]);
+	qglVertex3f(10, 10, -10);
+
+	qglTexCoord2f(mTextureCoords[1][0], mTextureCoords[1][1]);
+	qglVertex3f(10, -10, -10);
+
+	qglTexCoord2f(mTextureCoords[0][0], mTextureCoords[1][1]);
+	qglVertex3f(-10, -10, -10);
+
+	qglEnd();*/
+}
+
+void CMistyFog::CreateTextureCoords(void)
+{
+	float	xStart, yStart;
+	float	forwardWind, rightWind;
+
+	mSpeed = flrand(200.0f, 700.0f);
+
+	forwardWind = DotProduct(mWindTransform, backEnd.viewParms.ori.axis[0]);
+	rightWind = DotProduct(mWindTransform, backEnd.viewParms.ori.axis[1]);
+
+	if (forwardWind > 0.5f)
+	{	// moving away, so make the size smaller
+		mCurrentSize = flrand(mMinSize, mMinSize + mMinSize * 0.01f);
+//		mCurrentSize = mMinSize / 3.0;
+	}
+	else if (forwardWind < -0.5f)
+	{	// moving towards, so make bigger
+//		mCurrentSize = (mSize * 0.8) + (FloatRand() * mSize * 0.8);
+		mCurrentSize = flrand(mMaxSize - mMinSize, mMaxSize);
+	}
+	else
+	{	// normal range
+		mCurrentSize = flrand(mMinSize * 1.5f, mMinSize * 1.5f + mSize);
+	}
+
+	mCurrentSize /= 2.0f;
+
+	xStart = (1.0f - mCurrentSize - 0.40f) * flrand(0.0f, 1.0f) + 0.20f;
+	yStart = (1.0f - mCurrentSize - 0.40f) * flrand(0.0f, 1.0f) + 0.20f;
+
+	mTextureCoords[0][0] = xStart - mCurrentSize;
+	mTextureCoords[0][1] = yStart - mCurrentSize;
+	mTextureCoords[1][0] = xStart + mCurrentSize;
+	mTextureCoords[1][1] = yStart + mCurrentSize;
+}
+
+
+
+
+
+
+
+
+
+#define	MISTYFOG_WIDTH	30
+#define MISTYFOG_HEIGHT	30
+
+
+class CMistyFog2 : public CWorldEffect
+{
+protected:
+	vec4_t			mColors[MISTYFOG_HEIGHT][MISTYFOG_WIDTH];
+	vec3_t			mVerts[MISTYFOG_HEIGHT][MISTYFOG_WIDTH];
+	unsigned int	mIndexes[MISTYFOG_HEIGHT-1][MISTYFOG_WIDTH-1][4];
+	float			mAlpha;
+
+	float			mFadeAlpha;
+
+public:
+	CMistyFog2(void);
+
+	virtual	bool	Command(const char *command);
+
+			void	UpdateTexture(CMistyFog *fog);
+
+	virtual	void	Update(CWorldEffectsSystem *system, float elapseTime);
+	virtual	void	Render(CWorldEffectsSystem *system);
+};
+
+
+CMistyFog2::CMistyFog2(void) :
+	CWorldEffect(),
+	mAlpha(0.3f),
+
+	mFadeAlpha(0.0f)
+{
+	int			x, y;
+	float		xStep, yStep;
+
+	AddSlave(new CMistyFog(2));
+	AddSlave(new CMistyFog(2));
+
+	xStep = 20.0f / (MISTYFOG_WIDTH - 1);
+	yStep = 20.0f / (MISTYFOG_HEIGHT - 1);
+
+	for(y=0;y<MISTYFOG_HEIGHT;y++)
+	{
+		for(x=0;x<MISTYFOG_WIDTH;x++)
+		{
+			mVerts[y][x][0] = -10 + (x * xStep) + flrand(-xStep * (1.0f / 16), xStep * (1.0f / 16));
+			mVerts[y][x][1] = 10 - (y * yStep) + flrand(-xStep * (1.0f / 16), xStep * (1.0f / 16));
+			mVerts[y][x][2] = -10;
+
+			mColors[y][x][0] = 1.0;
+			mColors[y][x][1] = 1.0;
+			mColors[y][x][2] = 1.0;
+
+			if (y < MISTYFOG_HEIGHT-1 && x < MISTYFOG_WIDTH-1)
+			{
+				mIndexes[y][x][0] = (y*MISTYFOG_WIDTH) + x;
+				mIndexes[y][x][1] = (y*MISTYFOG_WIDTH) + x+1;
+				mIndexes[y][x][2] = ((y+1)*MISTYFOG_WIDTH) + x+1;
+				mIndexes[y][x][3] = ((y+1)*MISTYFOG_WIDTH) + x;
+			}
+		}
+	}
+}
+
+bool CMistyFog2::Command(const char *command)
+{
+	char	*token;
+
+	if (CWorldEffect::Command(command))
+	{
+		return true;
+	}
+
+	token = COM_ParseExt((const char **)&command, qfalse);
+	if (Q_stricmp(token, "fog") != 0)
+	{
+		return false;
+	}
+
+	token = COM_ParseExt((const char **)&command, qfalse);
+	if (Q_stricmp(token, "density") == 0)
+	{
+		token = COM_ParseExt((const char **)&command, qfalse);
+		mAlpha = atof(token);
+
+		return true;
+	}
+
+	return false;
+}
+
+void CMistyFog2::Update(CWorldEffectsSystem *system, float elapseTime)
+{
+	CMistyFog	*current;
+	int			x, y;
+
+	if (originContents & CONTENTS_OUTSIDE && !(originContents & CONTENTS_WATER))
+	{
+		if (mFadeAlpha < 1.0f)
+		{
+			mFadeAlpha += elapseTime * 0.5f;
+		}
+		if (mFadeAlpha > 1.0f)
+		{
+			mFadeAlpha = 1.0f;
+		}
+	}
+	else
+	{
+		if (mFadeAlpha > 0.0f)
+		{
+			mFadeAlpha -= elapseTime * 0.5f;
+		}
+
+		if (mFadeAlpha <= 0.0f)
+		{
+			return;
+		}
+	}
+
+	for(y=0;y<MISTYFOG_HEIGHT;y++)
+	{
+		for(x=0;x<MISTYFOG_WIDTH;x++)
+		{
+			mColors[y][x][3] = 0.0;
+		}
+	}
+
+	CWorldEffect::Update(system, elapseTime);
+
+	current = (CMistyFog *)mSlave;
+	while(current)
+	{
+		UpdateTexture(current);
+		UpdateTexture((CMistyFog *)current->GetSlave());
+		current = (CMistyFog *)current->GetNext();
+	}
+}
+
+void CMistyFog2::UpdateTexture(CMistyFog *fog)
+{
+	int				x, y, tx, ty;
+	float			xSize, ySize;
+	float			xStep, yStep;
+	float			xPos, yPos;
+	byte			*data = fog->GetData();
+	int				width = fog->GetWidth();
+	int				height = fog->GetHeight();
+	int				andWidth, andHeight;
+	float			alpha = fog->GetAlpha() * mAlpha * (1.0f/255) * mFadeAlpha;
+	float			*color;
+
+	if (!fog->GetRendering())
+	{
+		return;
+	}
+
+	andWidth = width-1;		// width must be power of 2
+	andHeight = height-1;	// height must be power of 2
+	xSize = fog->GetTextureCoord(1, 0) - fog->GetTextureCoord(0, 0);
+	ySize = fog->GetTextureCoord(1, 1) - fog->GetTextureCoord(0, 1);
+	xStep = xSize / (float)MISTYFOG_WIDTH;
+	yStep = ySize / (float)MISTYFOG_HEIGHT;
+
+	color = &mColors[0][0][3];
+	for(y=0,yPos = fog->GetTextureCoord(0, 1);y<MISTYFOG_HEIGHT;y++, yPos += yStep)
+	{
+		for(x=0,xPos = fog->GetTextureCoord(0, 0);x<MISTYFOG_WIDTH;x++, xPos += xStep)
+		{
+			tx = xPos * width;
+			tx &= andWidth;
+			ty = yPos * height;
+			ty &= andHeight;
+
+			(*color) += data[ty * width + tx] * alpha;
+			color += 4;
+		}
+	}
+}
+
+void CMistyFog2::Render(CWorldEffectsSystem *system)
+{
+	if (mFadeAlpha <= 0.0f)
+	{
+		return;
+	}
+
+#if 0
+	qglMatrixMode(GL_PROJECTION);
+	qglPushMatrix();
+	qglLoadIdentity ();
+	MYgluPerspective (80.0f,  1.0f,  4.0f,  2048.0f);
+
+	qglMatrixMode(GL_MODELVIEW);
+	qglPushMatrix();
+	qglLoadIdentity ();
+	qglRotatef (-90,  1, 0, 0);		// put Z going up
+	qglRotatef (90,  0, 0, 1);		// put Z going up
+	qglRotatef (0,  1, 0, 0);
+	qglRotatef (-90,  0, 1, 0);
+	qglRotatef (-90,  0, 0, 1);
+
+	qglDisable(GL_TEXTURE_2D);
+	GL_State(GLS_SRCBLEND_SRC_ALPHA|GLS_DSTBLEND_ONE);
+	qglShadeModel (GL_SMOOTH);
+
+	qglEnableClientState(GL_COLOR_ARRAY);
+
+	qglColorPointer(4, GL_FLOAT, 0, mColors);
+
+//	qglEnableClientState(GL_VERTEX_ARRAY);
+	qglVertexPointer( 3, GL_FLOAT, 0, mVerts );
+	if (qglLockArraysEXT)
+	{
+		qglLockArraysEXT(0, MISTYFOG_HEIGHT*MISTYFOG_WIDTH);
+	}
+
+	qglDrawElements(GL_QUADS, (MISTYFOG_HEIGHT-1)*(MISTYFOG_WIDTH-1)*4, GL_UNSIGNED_INT, mIndexes);
+
+	if ( qglUnlockArraysEXT )
+	{
+		qglUnlockArraysEXT();
+	}
+
+	qglDisableClientState(GL_COLOR_ARRAY);
+//	qglDisableClientState(GL_VERTEX_ARRAY);	 backend doesn't ever re=enable this properly
+
+	qglPopMatrix();
+	qglMatrixMode(GL_PROJECTION);
+	qglPopMatrix();
+	qglMatrixMode(GL_MODELVIEW);	// bug somewhere in the backend which requires this
+#endif
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class CWind : public CWorldEffect
+{
+private:
+	vec4_t	mPlanes[3];		// x y z normal, distance
+	float	mMaxDistance[3];
+	vec3_t	mVelocity;
+	int		mNumPlanes;
+	int		mAffectedDuration;
+	int		*mAffectedCount;
+	vec3_t	mPoint, mSize;
+	bool	mGlobal;
+
+public:
+	CWind(bool global = false);
+	CWind(vec3_t point, vec3_t velocity, vec3_t size, int duration, bool global = false);
+	~CWind(void);
+
+	virtual	void	Update(CWorldEffectsSystem *system, float elapseTime);
+	virtual	void	ParmUpdate(CWorldEffectsSystem *system, int which);
+	virtual	void	Render(CWorldEffectsSystem *system);
+
+			void	UpdateParms(vec3_t point, vec3_t velocity, vec3_t size, int duration);
 };
 
 
 
 
 
-////////////////////////////////////////////////////////////////////////////////////////
-// The Wind
-////////////////////////////////////////////////////////////////////////////////////////
-class	CWindZone
+
+
+
+CWind::CWind(bool global) :
+	CWorldEffect(),
+	mNumPlanes(0),
+	mAffectedCount(0),
+	mGlobal(global)
 {
-public:
-	bool		mGlobal;
-	SVecRange	mRBounds;
-	SVecRange	mRVelocity;
-	SIntRange	mRDuration;
-	SIntRange	mRDeadTime;
-	float		mMaxDeltaVelocityPerUpdate;
-	float		mChanceOfDeadTime;
+	mEnabled = false;
+}
 
-	CVec3		mCurrentVelocity;
-	CVec3		mTargetVelocity;
-	int			mTargetVelocityTimeRemaining;
+CWind::CWind(vec3_t point, vec3_t velocity, vec3_t size, int duration, bool global) :
+	CWorldEffect(),
+	mNumPlanes(0),
+	mAffectedCount(0),
+	mGlobal(global)
+{
+	UpdateParms(point, velocity, size, duration);
+}
 
-
-public:
-	////////////////////////////////////////////////////////////////////////////////////
-	// Initialize - Will setup default values for all data
-	////////////////////////////////////////////////////////////////////////////////////
-	void		Initialize()
+CWind::~CWind(void)
+{
+	if (mAffectedCount)
 	{
-		mRBounds.Clear();
-		mGlobal						= true;
+		delete [] mAffectedCount;
+		mAffectedCount = 0;
+	}
+}
 
-		mRVelocity.mMins			= -1500.0f;
-		mRVelocity.mMins[2]			= -10.0f;
-		mRVelocity.mMaxs			= 1500.0f;
-		mRVelocity.mMaxs[2]			= 10.0f;
+void CWind::UpdateParms(vec3_t point, vec3_t velocity, vec3_t size, int duration)
+{
+	vec3_t	normalDistance;
 
-		mMaxDeltaVelocityPerUpdate	= 10.0f;
+	mNumPlanes = 0;
 
-		mRDuration.mMin				= 1000;
-		mRDuration.mMax				= 2000;
+	VectorCopy(point, mPoint);
+	VectorCopy(size, mSize);
+	mSize[0] *= 0.5f;
+	VectorScale(mSize, 2, mSize);
+	VectorCopy(velocity, mVelocity);
 
-		mChanceOfDeadTime			= 0.3f;
-		mRDeadTime.mMin				= 1000;
-		mRDeadTime.mMax				= 3000;
+	VectorCopy(velocity, mPlanes[mNumPlanes]);
+	VectorNormalize(mPlanes[mNumPlanes]);
+	mPlanes[mNumPlanes][3] = DotProduct(mPoint, mPlanes[mNumPlanes]);
+	mMaxDistance[mNumPlanes] = mSize[0];
+	mNumPlanes++;
 
-		mCurrentVelocity.Clear();
-		mTargetVelocity.Clear();
-		mTargetVelocityTimeRemaining = 0;
+	VectorScale(mPlanes[0], mPlanes[0][3], normalDistance);
+	VectorSubtract(mPoint, normalDistance, mPlanes[mNumPlanes]);
+	VectorNormalize(mPlanes[mNumPlanes]);
+	mPlanes[mNumPlanes][3] = DotProduct(mPoint, mPlanes[mNumPlanes]);
+	mMaxDistance[mNumPlanes] = mSize[1];
+	mNumPlanes++;
+
+	CrossProduct(mPlanes[0], mPlanes[1], mPlanes[mNumPlanes]);
+	VectorNormalize(mPlanes[mNumPlanes]);
+	mPlanes[mNumPlanes][3] = DotProduct(mPoint, mPlanes[mNumPlanes]);
+	mMaxDistance[mNumPlanes] = mSize[2];
+	mNumPlanes++;
+
+	mPlanes[0][3] -= mSize[0] * 0.5f;
+	mPlanes[1][3] -= mSize[1] * 0.5f;
+	mPlanes[2][3] -= mSize[2] * 0.5f;
+
+	mAffectedDuration = duration;
+}
+
+void CWind::Update(CWorldEffectsSystem *system, float elapseTime)
+{
+	SParticle				*item;
+	int						i, j, *affected;
+	float					dist, calcDist[3];
+	vec3_t					difference;
+
+	if (!mEnabled)
+	{
+		return;
 	}
 
-	////////////////////////////////////////////////////////////////////////////////////
-	// Update - Changes wind when current target velocity expires
-	////////////////////////////////////////////////////////////////////////////////////
-	void		Update()
+	VectorSubtract(backEnd.viewParms.ori.origin, mPoint, difference);
+	if (VectorLength(difference) > 300.0f)
 	{
-		if (mTargetVelocityTimeRemaining==0)
+		return;
+	}
+
+	calcDist[0] = 0.0;
+	item = system->GetParticleVariable(WORLDEFFECT_PARTICLES);
+	affected = mAffectedCount;
+	for(i=system->GetIntVariable(WORLDEFFECT_PARTICLE_COUNT); i; i--)
+	{
+		if ((*affected))
 		{
-			if (FloatRand()<mChanceOfDeadTime)
+			(*affected)--;
+		}
+		else
+		{
+			if (!mGlobal)
 			{
-				mRDeadTime.Pick(mTargetVelocityTimeRemaining);
-				mTargetVelocity.Clear();
+				for(j=0;j<mNumPlanes;j++)
+				{
+					dist = DotProduct(item->pos, mPlanes[j]) - mPlanes[j][3];
+
+					if (dist < 0.01f || dist > mMaxDistance[j])
+					{
+						break;
+					}
+					else
+					{
+						calcDist[j] = dist;
+					}
+				}
+				if (j != mNumPlanes)
+				{
+					continue;
+				}
+			}
+
+			float	scaleLength = 1.0f - (calcDist[0] / mMaxDistance[0]);
+
+			(*affected) = mAffectedDuration * scaleLength;
+
+//			VectorMA(item->velocity, elapseTime, mVelocity);
+			VectorMA(item->velocity, elapseTime, mVelocity, item->velocity);
+		}
+		affected++;
+		item++;
+	}
+}
+
+void CWind::ParmUpdate(CWorldEffectsSystem *system, int which)
+{
+	CWorldEffect::ParmUpdate(system, which);
+
+	switch(which)
+	{
+		case WORLDEFFECT_PARTICLE_COUNT:
+			if (mAffectedCount)
+			{
+				delete [] mAffectedCount;
+			}
+			mAffectedCount = new int[system->GetIntVariable(WORLDEFFECT_PARTICLE_COUNT)];
+			memset(mAffectedCount, 0, system->GetIntVariable(WORLDEFFECT_PARTICLE_COUNT)*sizeof(int));
+			break;
+	}
+}
+
+void CWind::Render(CWorldEffectsSystem *system)
+{
+	vec3_t	output;
+	vec3_t	scale;
+
+	if (!mEnabled || !debugShowWind)
+	{
+		return;
+	}
+
+#if 0
+	qglDisable(GL_TEXTURE_2D);
+	qglDisable(GL_CULL_FACE);
+	GL_State(GLS_ALPHA);
+
+	qglColor4f(1.0, 0.0, 0.0, 0.5);
+	qglBegin(GL_QUADS);
+
+	scale[0] = mSize[0] * 0.5f;
+	scale[1] = mSize[1] * 0.5f;
+	scale[2] = mSize[2] * 0.5f;
+
+	VectorMA(mPoint, -scale[0], mPlanes[0], output);
+	VectorMA(output, -scale[1], mPlanes[1], output);
+	VectorMA(output, -scale[2], mPlanes[2], output);
+	qglVertex3fv(output);
+
+	VectorMA(mPoint, -scale[0], mPlanes[0], output);
+	VectorMA(output, scale[1], mPlanes[1], output);
+	VectorMA(output, -scale[2], mPlanes[2], output);
+	qglVertex3fv(output);
+
+	VectorMA(mPoint, -scale[0], mPlanes[0], output);
+	VectorMA(output, scale[1], mPlanes[1], output);
+	VectorMA(output, scale[2], mPlanes[2], output);
+	qglVertex3fv(output);
+
+	VectorMA(mPoint, -scale[0], mPlanes[0], output);
+	VectorMA(output, -scale[1], mPlanes[1], output);
+	VectorMA(output, scale[2], mPlanes[2], output);
+	qglVertex3fv(output);
+
+
+
+	qglColor4f(0.0, 1.0, 0.0, 0.5);
+	VectorMA(mPoint, -scale[0], mPlanes[0], output);
+	VectorMA(output, -scale[1], mPlanes[1], output);
+	VectorMA(output, -scale[2], mPlanes[2], output);
+	qglVertex3fv(output);
+
+	VectorMA(mPoint, scale[0], mPlanes[0], output);
+	VectorMA(output, -scale[1], mPlanes[1], output);
+	VectorMA(output, -scale[2], mPlanes[2], output);
+	qglVertex3fv(output);
+
+	VectorMA(mPoint, scale[0], mPlanes[0], output);
+	VectorMA(output, -scale[1], mPlanes[1], output);
+	VectorMA(output, scale[2], mPlanes[2], output);
+	qglVertex3fv(output);
+
+	VectorMA(mPoint, -scale[0], mPlanes[0], output);
+	VectorMA(output, -scale[1], mPlanes[1], output);
+	VectorMA(output, scale[2], mPlanes[2], output);
+	qglVertex3fv(output);
+
+
+	qglColor4f(0.0, 0.0, 1.0, 0.5);
+	VectorMA(mPoint, -scale[0], mPlanes[0], output);
+	VectorMA(output, -scale[2], mPlanes[2], output);
+	VectorMA(output, -scale[1], mPlanes[1], output);
+	qglVertex3fv(output);
+
+	VectorMA(mPoint, scale[0], mPlanes[0], output);
+	VectorMA(output, -scale[2], mPlanes[2], output);
+	VectorMA(output, -scale[1], mPlanes[1], output);
+	qglVertex3fv(output);
+
+	VectorMA(mPoint, scale[0], mPlanes[0], output);
+	VectorMA(output, -scale[2], mPlanes[2], output);
+	VectorMA(output, scale[1], mPlanes[1], output);
+	qglVertex3fv(output);
+
+	VectorMA(mPoint, -scale[0], mPlanes[0], output);
+	VectorMA(output, -scale[2], mPlanes[2], output);
+	VectorMA(output, scale[1], mPlanes[1], output);
+	qglVertex3fv(output);
+
+
+	qglEnd();
+
+	qglEnable(GL_CULL_FACE);
+	qglEnable(GL_TEXTURE_2D);
+#endif
+}
+
+
+
+
+
+
+
+
+
+
+
+
+#define CONTENTS_X_SIZE		16
+#define CONTENTS_Y_SIZE		16
+#define CONTENTS_Z_SIZE		8
+
+
+class CSnowSystem : public CWorldEffectsSystem
+{
+private:
+	// configurable
+	float		mAlpha;
+	vec3_t		mMinSpread, mMaxSpread;
+	vec3_t		mMinVelocity, mMaxVelocity;
+	int			mMaxSnowflakes;
+	float		mWindDuration, mWindLow;
+	float		mWindMin, mWindMax;
+	vec3_t		mWindSize;
+
+	// image_t		*mImage;
+	vec3_t		mMins, mMaxs;
+	float		mNextWindGust, mWindLowSize;
+	CWind		*mWindGust;
+
+	vec3_t		mWindDirection, mWindSpeed;
+	int			mWindChange;
+
+	SParticle	*mSnowList;
+	int			mContents[CONTENTS_Z_SIZE][CONTENTS_Y_SIZE][CONTENTS_X_SIZE];
+	vec3_t		mContentsSize;
+	vec3_t		mContentsStart;
+
+	int			mUpdateCount;
+	int			mOverallContents;
+	bool		mIsSnowing;
+
+	const		float	mVelocityStabilize;
+	const		int		mUpdateMax;
+
+public:
+	CSnowSystem(int maxSnowflakes);
+	~CSnowSystem(void);
+
+	virtual	int			GetIntVariable(int which);
+	virtual	SParticle	*GetParticleVariable(int which);
+	virtual	float		*GetVecVariable(int which);
+
+	virtual bool	Command(const char *command);
+
+	virtual	void	Update(float elapseTime);
+	virtual	void	Render(void);
+
+			void	Init(void);
+
+			bool	IsSnowing() { return mIsSnowing; }
+};
+
+CSnowSystem::CSnowSystem(int maxSnowflakes) :
+	mAlpha(0.09f),
+	mMaxSnowflakes(maxSnowflakes),
+
+	mWindDuration(2.0f),
+	mWindLow(3.0f),
+	mWindMin(30.0f), // .6 3
+	mWindMax(70.0f),
+	mNextWindGust(0.0),
+	mWindLowSize(0.0),
+	mWindGust(0),
+	mWindChange(0),
+
+	mUpdateCount(0),
+	mOverallContents(0),
+	mIsSnowing(false),
+
+	mVelocityStabilize(18),
+	mUpdateMax(10)
+{
+	mMinSpread[0] = -600;
+	mMinSpread[1] = -600;
+	mMinSpread[2] = -200;
+	mMaxSpread[0] = 600;
+	mMaxSpread[1] = 600;
+	mMaxSpread[2] = 250;
+
+	mMinVelocity[0] = -15.0;
+	mMaxVelocity[0] = 15.0;
+	mMinVelocity[1] = -15.0;
+	mMaxVelocity[1] = 15.0;
+	mMinVelocity[2] = -20.0;
+	mMaxVelocity[2] = -70.0;
+
+	mWindSize[0] = 1000.0;
+	mWindSize[1] = 300.0;
+	mWindSize[2] = 300.0;
+
+	mSnowList = new SParticle[mMaxSnowflakes];
+
+	mContentsSize[0] = (mMaxSpread[0] - mMinSpread[0]) / CONTENTS_X_SIZE;
+	mContentsSize[1] = (mMaxSpread[1] - mMinSpread[1]) / CONTENTS_Y_SIZE;
+	mContentsSize[2] = (mMaxSpread[2] - mMinSpread[2]) / CONTENTS_Z_SIZE;
+
+	Init();
+
+	AddWorldEffect(mWindGust= new CWind(true));
+	ParmUpdate(CWorldEffect::WORLDEFFECT_PARTICLE_COUNT);
+}
+
+CSnowSystem::~CSnowSystem(void)
+{
+	delete [] mSnowList;
+}
+
+void CSnowSystem::Init(void)
+{
+	int			i;
+	SParticle	*item;
+
+	mMins[0] = mMaxs[0] = mMins[1] = mMaxs[1] = mMins[2] = mMaxs[2] = 99999;
+	item = mSnowList;
+	for(i=mMaxSnowflakes;i;i--)
+	{
+		item->pos[0] = item->pos[1] = item->pos[2] = 99999;
+		item->velocity[0] = item->velocity[1] = item->velocity[2] = 0.0;
+		item->flags = 0;
+		item++;
+	}
+}
+
+int CSnowSystem::GetIntVariable(int which)
+{
+	switch(which)
+	{
+		case CWorldEffect::WORLDEFFECT_PARTICLE_COUNT:
+			return mMaxSnowflakes;
+	}
+
+	return CWorldEffectsSystem::GetIntVariable(which);
+}
+
+SParticle *CSnowSystem::GetParticleVariable(int which)
+{
+	switch(which)
+	{
+		case CWorldEffect::WORLDEFFECT_PARTICLES:
+			return mSnowList;
+	}
+
+	return CWorldEffectsSystem::GetParticleVariable(which);
+}
+
+float *CSnowSystem::GetVecVariable(int which)
+{
+	switch(which)
+	{
+		case CRainSystem::RAINSYSTEM_WIND_DIRECTION:
+			return mWindDirection;
+	}
+	return 0;
+}
+
+bool CSnowSystem::Command(const char *command)
+{
+	char	*token;
+
+	if (CWorldEffectsSystem::Command(command))
+	{
+		return true;
+	}
+
+	token = COM_ParseExt((const char **)&command, qfalse);
+
+	if (Q_stricmp(token, "wind") == 0)
+	{	// snow wind ( windOriginX windOriginY windOriginZ ) ( windVelocityX windVelocityY windVelocityZ ) ( sizeX sizeY sizeZ )
+		vec3_t	origin, velocity, size;
+
+		ParseVector((const char **)&command, 3, origin);
+		ParseVector((const char **)&command, 3, velocity);
+		ParseVector((const char **)&command, 3, size);
+
+		AddWorldEffect(new CWind(origin, velocity, size, 0));
+
+		return true;
+	}
+	else if (Q_stricmp(token, "fog") == 0)
+	{	// snow fog
+		AddWorldEffect(new CMistyFog2);
+		mWindChange = 0;
+		return true;
+	}
+	else if (Q_stricmp(token, "alpha") == 0)
+	{	// snow alpha <float>											default: 0.09
+		token = COM_ParseExt((const char **)&command, qfalse);
+		mAlpha = atof(token);
+		return true;
+	}
+	else if (Q_stricmp(token, "spread") == 0)
+	{	// snow spread ( minX minY minZ ) ( maxX maxY maxZ )			default: ( -600 -600 -200 ) ( 600 600 250 )
+		ParseVector((const char **)&command, 3, mMinSpread);
+		ParseVector((const char **)&command, 3, mMaxSpread);
+		return true;
+	}
+	else if (Q_stricmp(token, "velocity") == 0)
+	{	// snow velocity ( minX minY minZ ) ( maxX maxY maxZ )			default: ( -15 -15 -20 ) ( 15 15 -70 )
+		ParseVector((const char **)&command, 3, mMinSpread);
+		ParseVector((const char **)&command, 3, mMaxSpread);
+		return true;
+	}
+	else if (Q_stricmp(token, "blowing") == 0)
+	{
+		token = COM_ParseExt((const char **)&command, qfalse);
+		if (Q_stricmp(token, "duration") == 0)
+		{	// snow blowing duration <int>									default: 2
+			token = COM_ParseExt((const char **)&command, qfalse);
+			mWindDuration = atol(token);
+			return true;
+		}
+		else if (Q_stricmp(token, "low") == 0)
+		{	// snow blowing low <int>										default: 3
+			token = COM_ParseExt((const char **)&command, qfalse);
+			mWindLow = atol(token);
+			return true;
+		}
+		else if (Q_stricmp(token, "velocity") == 0)
+		{	// snow blowing velocity ( min max )							default: ( 30 70 )
+			float	data[2];
+
+			ParseVector((const char **)&command, 2, data);
+			mWindMin = data[0];
+			mWindMax = data[1];
+			return true;
+		}
+		else if (Q_stricmp(token, "size") == 0)
+		{	// snow blowing size ( minX minY minZ )							default: ( 1000 300 300 )
+			ParseVector((const char **)&command, 3, mWindSize);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void CSnowSystem::Update(float elapseTime)
+{
+	int			i;
+	SParticle	*item;
+	vec3_t		origin, newMins, newMaxs;
+	vec3_t		difference, start;
+	bool		resetFlake;
+	int			x, y, z;
+	int			contents;
+
+	mWindChange--;
+	if (mWindChange < 0)
+	{
+		mWindDirection[0] = flrand(-1.0f, 1.0f);
+		mWindDirection[1] = flrand(-1.0f, 1.0f);
+		mWindDirection[2] = 0.0f;
+		VectorNormalize(mWindDirection);
+		VectorScale(mWindDirection, 0.025f, mWindSpeed);
+
+		mWindChange = irand(200, 450);
+//		mWindChange = 10;
+
+		ParmUpdate(CRainSystem::RAINSYSTEM_WIND_DIRECTION);
+	}
+
+	if ((mOverallContents & CONTENTS_OUTSIDE))
+	{
+		CWorldEffectsSystem::Update(elapseTime);
+	}
+
+	VectorCopy(backEnd.viewParms.ori.origin, origin);
+
+	mNextWindGust -= elapseTime;
+	if (mNextWindGust < 0.0f)
+	{
+		mWindGust->SetVariable(CWorldEffect::WORLDEFFECT_ENABLED, false);
+	}
+
+	if (mNextWindGust < mWindLowSize)
+	{
+		vec3_t		windPos;
+		vec3_t		windDirection;
+
+		windDirection[0] = flrand(-1.0f, 1.0f);
+		windDirection[1] = flrand(-1.0f, 1.0f);
+		windDirection[2] = 0.0f;  //ri.flrand(-0.1, 0.1);
+		VectorNormalize(windDirection);
+		VectorScale(windDirection, flrand(mWindMin, mWindMax), windDirection);
+
+		VectorCopy(origin, windPos);
+
+		mWindGust->SetVariable(CWorldEffect::WORLDEFFECT_ENABLED, true);
+		mWindGust->UpdateParms(windPos, windDirection, mWindSize, 0);
+
+		mNextWindGust = flrand(mWindDuration, mWindDuration * 2.0f);
+		mWindLowSize = -flrand(mWindLow, mWindLow * 3.0f);
+	}
+
+	newMins[0] = mMinSpread[0] + origin[0];
+	newMaxs[0] = mMaxSpread[0] + origin[0];
+
+	newMins[1] = mMinSpread[1] + origin[1];
+	newMaxs[1] = mMaxSpread[1] + origin[1];
+
+	newMins[2] = mMinSpread[2] + origin[2];
+	newMaxs[2] = mMaxSpread[2] + origin[2];
+
+	for(i=0;i<3;i++)
+	{
+		difference[i] = newMaxs[i] - mMaxs[i];
+		if (difference[i] >= 0.0f)
+		{
+			if (difference[i] > newMaxs[i]-newMins[i])
+			{
+				difference[i] = newMaxs[i]-newMins[i];
+			}
+			start[i] = newMaxs[i] - difference[i];
+		}
+		else
+		{
+			if (difference[i] < newMins[i]-newMaxs[i])
+			{
+				difference[i] = newMins[i]-newMaxs[i];
+			}
+			start[i] = newMins[i] - difference[i];
+		}
+	}
+
+//	contentsStart[0] = (((origin[0] + mMinSpread[0]) / mContentsSize[0])) * mContentsSize[0];
+//	contentsStart[1] = (((origin[1] + mMinSpread[1]) / mContentsSize[1])) * mContentsSize[1];
+//	contentsStart[2] = (((origin[2] + mMinSpread[2]) / mContentsSize[2])) * mContentsSize[2];
+
+	if (fabsf(difference[0]) > 25 || fabsf(difference[1]) > 25 || fabsf(difference[2]) > 25)
+	{
+		vec3_t		pos;
+		int			*store;
+
+		mContentsStart[0] = ((int)((origin[0] + mMinSpread[0]) / mContentsSize[0])) * mContentsSize[0];
+		mContentsStart[1] = ((int)((origin[1] + mMinSpread[1]) / mContentsSize[1])) * mContentsSize[1];
+		mContentsStart[2] = ((int)((origin[2] + mMinSpread[2]) / mContentsSize[2])) * mContentsSize[2];
+
+		mOverallContents = 0;
+		store = (int *)mContents;
+		for(z=0,pos[2]=mContentsStart[2];z<CONTENTS_Z_SIZE;z++,pos[2]+=mContentsSize[2])
+		{
+			for(y=0,pos[1]=mContentsStart[1];y<CONTENTS_Y_SIZE;y++,pos[1]+=mContentsSize[1])
+			{
+				for(x=0,pos[0]=mContentsStart[0];x<CONTENTS_X_SIZE;x++,pos[0]+=mContentsSize[0])
+				{
+					contents = ri.CM_PointContents(pos, 0);
+					mOverallContents |= contents;
+					*store++ = contents;
+				}
+			}
+		}
+
+		item = mSnowList;
+		for(i=mMaxSnowflakes;i;i--)
+		{
+			resetFlake = false;
+
+			if (item->pos[0] < newMins[0] || item->pos[0] > newMaxs[0])
+			{
+				item->pos[0] = flrand(0.0f, difference[0]) + start[0];
+				resetFlake = true;
+			}
+			if (item->pos[1] < newMins[1] || item->pos[1] > newMaxs[1])
+			{
+				item->pos[1] = flrand(0.0f, difference[1]) + start[1];
+				resetFlake = true;
+			}
+			if (item->pos[2] < newMins[2] || item->pos[2] > newMaxs[2])
+			{
+				item->pos[2] = flrand(0.0f, difference[2]) + start[2];
+				resetFlake = true;
+			}
+
+			if (resetFlake)
+			{
+				item->velocity[0] = 0.0f;
+				item->velocity[1] = 0.0f;
+				item->velocity[2] = flrand(mMaxVelocity[2], mMinVelocity[2]);
+			}
+			item++;
+		}
+
+		VectorCopy(newMins, mMins);
+		VectorCopy(newMaxs, mMaxs);
+	}
+
+	if (!(mOverallContents & CONTENTS_OUTSIDE))
+	{
+		mIsSnowing = false;
+		return;
+	}
+
+	mIsSnowing = true;
+
+	mUpdateCount = (mUpdateCount + 1) % mUpdateMax;
+
+	x = y = z = 0;
+	item = mSnowList;
+	for(i=mMaxSnowflakes;i;i--)
+	{
+		resetFlake = false;
+
+//		if ((i & mUpdateCount) == 0)   wrong check
+		{
+			if (item->velocity[0] < mMinVelocity[0])
+			{
+				item->velocity[0] += mVelocityStabilize * elapseTime;
+			}
+			else if (item->velocity[0] > mMaxVelocity[0])
+			{
+				item->velocity[0] -= mVelocityStabilize * elapseTime;
 			}
 			else
 			{
-				mRDuration.Pick(mTargetVelocityTimeRemaining);
-				mRVelocity.Pick(mTargetVelocity);
+				item->velocity[0] += flrand(-1.4f, 1.4f);
+			}
+			if (item->velocity[1] < mMinVelocity[1])
+			{
+				item->velocity[1] += mVelocityStabilize * elapseTime;
+			}
+			else if (item->velocity[1] > mMaxVelocity[1])
+			{
+				item->velocity[1] -= mVelocityStabilize * elapseTime;
+			}
+			else
+			{
+				item->velocity[1] += flrand(-1.4f, 1.4f);
+			}
+			if (item->velocity[2] > mMinVelocity[2])
+			{
+				item->velocity[2] -= mVelocityStabilize*2;
 			}
 		}
-		else if (mTargetVelocityTimeRemaining!=-1)
-		{
-			mTargetVelocityTimeRemaining--;
+//		VectorMA(item->pos, elapseTime, item->velocity);
+		VectorMA(item->pos, elapseTime, item->velocity, item->pos);
 
-			CVec3	DeltaVelocity(mTargetVelocity - mCurrentVelocity);
-			float	DeltaVelocityLen = VectorNormalize(DeltaVelocity.v);
-			if (DeltaVelocityLen > mMaxDeltaVelocityPerUpdate)
+		if (item->pos[2] < newMins[2])
+		{
+			resetFlake = true;
+		}
+		else
+		{
+//			if ((i & mUpdateCount) == 0)
 			{
-				DeltaVelocityLen = mMaxDeltaVelocityPerUpdate;
+				x = (item->pos[0] - mContentsStart[0]) / mContentsSize[0];
+				y = (item->pos[1] - mContentsStart[1]) / mContentsSize[1];
+				z = (item->pos[2] - mContentsStart[2]) / mContentsSize[2];
+				if (x < 0 || x >= CONTENTS_X_SIZE ||
+					y < 0 || y >= CONTENTS_Y_SIZE ||
+					z < 0 || z >= CONTENTS_Z_SIZE)
+				{
+					resetFlake = true;
+				}
 			}
-			DeltaVelocity *= (DeltaVelocityLen);
-			mCurrentVelocity += DeltaVelocity;
+		}
+
+		if (resetFlake)
+		{
+			item->pos[2] = newMaxs[2] - (newMins[2] - item->pos[2]);
+			if (item->pos[2] < newMins[2] || item->pos[2] > newMaxs[2])
+			{	// way out of range
+				item->pos[2] = flrand(newMins[2], newMaxs[2]);
+			}
+
+			item->pos[0] = flrand(newMins[0], newMaxs[0]);
+			item->pos[1] = flrand(newMins[1], newMaxs[1]);
+
+			item->velocity[0] = 0.0f;
+			item->velocity[1] = 0.0f;
+			item->velocity[2] = flrand(mMaxVelocity[2], mMinVelocity[2]);
+			item->flags &= ~PARTICLE_FLAG_RENDER;
+		}
+		else if (mContents[z][y][x] & CONTENTS_OUTSIDE)
+		{
+			item->flags |= PARTICLE_FLAG_RENDER;
+		}
+		else
+		{
+			item->flags &= ~PARTICLE_FLAG_RENDER;
+		}
+
+		item++;
+	}
+}
+
+void CSnowSystem::Render(void)
+{
+	int			i;
+	SParticle	*item;
+	vec3_t		origin;
+
+	if (!(mOverallContents & CONTENTS_OUTSIDE))
+	{
+		return;
+	}
+
+	CWorldEffectsSystem::Render();
+
+	VectorAdd(backEnd.viewParms.ori.origin, mMinSpread, origin);
+
+#if 0
+	qglColor4f(0.8f, 0.8f, 0.8f, mAlpha);
+
+//	GL_State(GLS_SRCBLEND_SRC_ALPHA|GLS_DSTBLEND_ONE);
+	GL_State(GLS_ALPHA);
+	qglDisable(GL_TEXTURE_2D);
+
+	qglPointSize(2.0);
+
+	item = mSnowList;
+	qglBegin(GL_POINTS);
+	for(i=mMaxSnowflakes;i;i--)
+	{
+		if (item->flags & PARTICLE_FLAG_RENDER)
+		{
+			qglVertex3fv(item->pos);
+		}
+		item++;
+	}
+	qglEnd();
+	qglEnable(GL_TEXTURE_2D);
+#endif
+}
+
+CSnowSystem	*snowSystem = 0;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CRainSystem::CRainSystem(int maxRain) :
+	mMaxRain(maxRain),
+	// mNextWindGust(0),
+	mRainHeight(5),
+	mAlpha(0.1f),
+	mWindAngle(1.0f),
+
+	mFadeAlpha(0.0f),
+	mIsRaining(false)
+
+{
+	mSpread[0] = M_PI*2;		// angle spread
+	mSpread[1] = 20.0f;			// radius spread
+	mSpread[2] = 20.0f;			// z spread
+
+	mMinVelocity[0] = 0.1f;
+	mMaxVelocity[0] = -0.1f;
+	mMinVelocity[1] = 0.1f;
+	mMaxVelocity[1] = -0.1f;
+	mMinVelocity[2] = -60.0f;
+	mMaxVelocity[2] = -50.0f;
+
+	mWindDuration = 15;
+	mWindLow = 50;
+	mWindMin = 0.01f;
+	mWindMax = 0.05f;
+
+	mWindChange = 0;
+	mWindDirection[0] = mWindDirection[1] = mWindDirection[2] = 0.0f;
+
+	mRainList = new SParticle[mMaxRain];
+
+#if 0
+	mImage = R_FindImageFile("gfx/world/rain", qfalse, qfalse, qfalse, qfalse);
+	GL_Bind(mImage);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+#endif
+
+	Init();
+}
+
+CRainSystem::~CRainSystem(void)
+{
+	delete [] mRainList;
+}
+
+void CRainSystem::Init(void)
+{
+	int			i;
+	SParticle	*item;
+
+	item = mRainList;
+	for(i=mMaxRain;i;i--)
+	{
+		item->pos[0] = flrand(0.0f, mSpread[0]);
+		item->pos[1] = flrand(0.0f, mSpread[1]);
+		item->pos[2] = flrand(-mSpread[2], mSpread[2]);
+		item->pos[2] = flrand(-mSpread[2], 40.0f);
+		item->velocity[0] = flrand(mMinVelocity[0], mMaxVelocity[0]);
+		item->velocity[1] = flrand(mMinVelocity[1], mMaxVelocity[1]);
+		item->velocity[2] = flrand(mMinVelocity[2], mMaxVelocity[2]);
+		item++;
+	}
+}
+
+int CRainSystem::GetIntVariable(int which)
+{
+	switch(which)
+	{
+		case CWorldEffect::WORLDEFFECT_PARTICLE_COUNT:
+			return mMaxRain;
+	}
+
+	return CWorldEffectsSystem::GetIntVariable(which);
+}
+
+SParticle *CRainSystem::GetParticleVariable(int which)
+{
+	switch(which)
+	{
+		case CWorldEffect::WORLDEFFECT_PARTICLES:
+			return mRainList;
+	}
+
+	return CWorldEffectsSystem::GetParticleVariable(which);
+}
+
+float CRainSystem::GetFloatVariable(int which)
+{
+	switch(which)
+	{
+		case CRainSystem::RAINSYSTEM_WIND_SPEED:
+			return mWindAngle * 75.0f;		// pat scaled
+	}
+
+	return 0.0f;
+}
+
+float *CRainSystem::GetVecVariable(int which)
+{
+	switch(which)
+	{
+		case CRainSystem::RAINSYSTEM_WIND_DIRECTION:
+			return mWindDirection;
+	}
+	return 0;
+}
+
+bool CRainSystem::Command(const char *command)
+{
+	char	*token;
+
+	if (CWorldEffectsSystem::Command(command))
+	{
+		return true;
+	}
+
+	token = COM_ParseExt((const char **)&command, qfalse);
+
+	if (Q_stricmp(token, "fog") == 0)
+	{	// rain fog
+		AddWorldEffect(new CMistyFog2);
+		mWindChange = 0;
+		return true;
+	}
+	else if (Q_stricmp(token, "fall") == 0)
+	{	// rain fall ( minVelocity maxVelocity )			default: ( -60 -50 )
+		float	data[2];
+
+		if (ParseVector((const char **)&command, 2, data))
+		{
+			mMinVelocity[2] = data[0];
+			mMaxVelocity[2] = data[1];
+		}
+		return true;
+	}
+	else if (Q_stricmp(token, "spread") == 0)
+	{	// rain spread ( radius height )					default: ( 20 20 )
+		ParseVector((const char **)&command, 2, &mSpread[1]);
+		return true;
+	}
+	else if (Q_stricmp(token, "alpha") == 0)
+	{	// rain alpha <float>								default: 0.15
+		token = COM_ParseExt((const char **)&command, qfalse);
+		mAlpha = atof(token);
+		return true;
+	}
+	else if (Q_stricmp(token, "height") == 0)
+	{	// rain height <float>								default: 1.5
+		token = COM_ParseExt((const char **)&command, qfalse);
+		mRainHeight = atof(token);
+		return true;
+	}
+	else if (Q_stricmp(token, "angle") == 0)
+	{	// rain angle <float>								default: 1.0
+		token = COM_ParseExt((const char **)&command, qfalse);
+		mWindAngle = atof(token);
+		return true;
+	}
+
+	return false;
+}
+
+void CRainSystem::Update(float elapseTime)
+{
+	int			i;
+	SParticle	*item;
+	vec3_t		windDifference;
+
+	mWindChange--;
+
+	if (mWindChange < 0)
+	{
+		mNewWindDirection[0] = flrand(-1.0f, 1.0f);
+		mNewWindDirection[1] = flrand(-1.0f, 1.0f);
+		mNewWindDirection[2] = 0.0f;
+		VectorNormalize(mNewWindDirection);
+		VectorScale(mNewWindDirection, 0.025f, mWindSpeed);
+
+		mWindChange = irand(200, 450);
+//		mWindChange = 10;
+
+		ParmUpdate(CRainSystem::RAINSYSTEM_WIND_DIRECTION);
+	}
+
+	VectorSubtract(mNewWindDirection, mWindDirection, windDifference);
+//	VectorMA(mWindDirection, elapseTime, windDifference);
+	VectorMA(mWindDirection, elapseTime, windDifference, mWindDirection);
+
+	CWorldEffectsSystem::Update(elapseTime);
+
+	if (originContents & CONTENTS_OUTSIDE && !(originContents & CONTENTS_WATER))
+	{
+		mIsRaining = true;
+		if (mFadeAlpha < 1.0f)
+		{
+			mFadeAlpha += elapseTime * 0.5f;
+		}
+		if (mFadeAlpha > 1.0f)
+		{
+			mFadeAlpha = 1.0f;
 		}
 	}
-};
-ratl::vector_vs<CWindZone, MAX_WIND_ZONES>		mWindZones;
+	else
+	{
+		mIsRaining = false;
+		if (mFadeAlpha > 0.0f)
+		{
+			mFadeAlpha -= elapseTime * 0.5f;
+		}
+
+		if (mFadeAlpha <= 0.0f)
+		{
+			return;
+		}
+	}
+
+	item = mRainList;
+	for(i=mMaxRain;i;i--)
+	{
+//		VectorMA(item->pos, elapseTime, item->velocity);
+		VectorMA(item->pos, elapseTime, item->velocity, item->pos);
+
+		if (item->pos[2] < -mSpread[2])
+		{
+			item->pos[0] = flrand(0.0f, mSpread[0]);
+			item->pos[1] = flrand(0.0f, mSpread[1]);
+			item->pos[2] = mSpread[2];
+			item->pos[2] = 40.0f;
+
+			item->velocity[0] = flrand(mMinVelocity[0], mMaxVelocity[0]);
+			item->velocity[1] = flrand(mMinVelocity[1], mMaxVelocity[1]);
+			item->velocity[2] = flrand(mMinVelocity[2], mMaxVelocity[2]);
+		}
+
+		item++;
+	}
+}
+
+void CRainSystem::Render(void)
+{
+	int			i;
+	SParticle	*item;
+	vec4_t		forward, down, left;
+	vec3_t		pos;
+//	float		percent;
+	float		radius;
+
+	CWorldEffectsSystem::Render();
+
+	if (mFadeAlpha <= 0.0)
+	{
+		return;
+	}
+
+	VectorScale(backEnd.viewParms.ori.axis[0], 1, forward);		// forward
+	VectorScale(backEnd.viewParms.ori.axis[1], 0.2f, left);		// left
+	down[0] = 0 - mWindDirection[0] * mRainHeight * mWindAngle;
+	down[1] = 0 - mWindDirection[1] * mRainHeight * mWindAngle;
+	down[2] = -mRainHeight;
+
+#if 0
+	GL_Bind(mImage);
+
+	GL_State(GLS_ALPHA);
+	qglEnable(GL_TEXTURE_2D);
+	qglDisable(GL_CULL_FACE);
+
+	qglMatrixMode(GL_MODELVIEW);
+	qglPushMatrix();
+    qglTranslatef (backEnd.viewParms.ori.origin[0], backEnd.viewParms.ori.origin[1],  backEnd.viewParms.ori.origin[2]);
+
+	item = mRainList;
+	qglBegin(GL_TRIANGLES );
+	for(i=mMaxRain;i;i--)
+	{
+/*		percent = (item->pos[1] -(-20.0)) / (20.0 - (-20.0));
+		percent *= forward[2];
+		if (percent < 0.0)
+		{
+			radius = 10 * (percent + 1.0);
+		}
+		else
+		{
+			radius = 10 * (1.0 - percent);
+		}*/
+		radius = item->pos[1];
+		if (item->pos[2] < 0)
+		{
+//			radius *= 1.0 - (item->pos[2] / 40.0);
+			float alpha = mAlpha * (item->pos[1] / -item->pos[2]);
+
+			if (alpha > mAlpha)
+			{
+				alpha = mAlpha;
+			}
+			qglColor4f(1.0, 1.0, 1.0, alpha * mFadeAlpha);
+		}
+		else
+		{
+			qglColor4f(1.0, 1.0, 1.0, mAlpha * mFadeAlpha);
+//			radius *= 1.0 + (item->pos[2] / 20.0);
+		}
+
+		pos[0] = sinf(item->pos[0]) * radius + (item->pos[2] * mWindDirection[0] * mWindAngle);
+		pos[1] = cosf(item->pos[0]) * radius + (item->pos[2] * mWindDirection[1] * mWindAngle);
+		pos[2] = item->pos[2];
+
+		qglTexCoord2f(1.0, 0.0);
+		qglVertex3f(pos[0],
+					pos[1],
+					pos[2]);
+
+		qglTexCoord2f(0.0, 0.0);
+		qglVertex3f(pos[0] + left[0],
+					pos[1] + left[1],
+					pos[2] + left[2]);
+
+		qglTexCoord2f(0.0, 1.0);
+		qglVertex3f(pos[0] + down[0] + left[0],
+					pos[1] + down[1] + left[1],
+					pos[2] + down[2] + left[2]);
+		item++;
+	}
+	qglEnd();
+
+	qglEnable(GL_CULL_FACE);
+
+	qglPopMatrix();
+#endif
+}
+
+
+
+
+
+
+CRainSystem	*rainSystem = 0;
+
+
+void R_InitWorldEffects(void)
+{
+	if (rainSystem)
+	{
+		delete rainSystem;
+	}
+
+	if (snowSystem)
+	{
+		delete snowSystem;
+	}
+}
+
+void R_ShutdownWorldEffects(void)
+{
+	if (rainSystem)
+	{
+		delete rainSystem;
+		rainSystem = 0;
+	}
+	if (snowSystem)
+	{
+		delete snowSystem;
+		snowSystem = 0;
+	}
+}
+
+void SetViewportAndScissor( void ) ;
+
+void RB_RenderWorldEffects(void)
+{
+	float					elapseTime = backEnd.refdef.frametime / 1000.0;
+
+	if (tr.refdef.rdflags & RDF_NOWORLDMODEL || !tr.world)
+	{	//  no world rendering or no world
+		return;
+	}
+
+#if 0
+	SetViewportAndScissor();
+	qglMatrixMode(GL_MODELVIEW);
+//	qglPushMatrix();
+	qglLoadMatrixf( backEnd.viewParms.world.modelMatrix );
+#endif
+
+	originContents = ri.CM_PointContents(backEnd.viewParms.ori.origin, 0);
+
+	if (rainSystem)
+	{
+		rainSystem->Update(elapseTime);
+		rainSystem->Render();
+	}
+
+	if (snowSystem)
+	{
+		snowSystem->Update(elapseTime);
+		snowSystem->Render();
+	}
+
+//	qglMatrixMode(GL_MODELVIEW);
+//	qglPopMatrix();
+}
+
+//	console commands for r_we
+//
+//	SNOW
+//		snow init <particles>
+//		snow remove
+//		snow alpha <float>											default: 0.09
+//		snow spread ( minX minY minZ ) ( maxX maxY maxZ )			default: ( -600 -600 -200 ) ( 600 600 250 )
+//		snow velocity ( minX minY minZ ) ( maxX maxY maxZ )			default: ( -15 -15 -20 ) ( 15 15 -70 )
+//		snow blowing duration <int>									default: 2
+//		snow blowing low <int>										default: 3
+//		snow blowing velocity ( min max )							default: ( 30 70 )
+//		snow blowing size ( minX minY minZ )						default: ( 1000 300 300 )
+//		snow wind ( windOriginX windOriginY windOriginZ ) ( windVelocityX windVelocityY windVelocityZ ) ( sizeX sizeY sizeZ )
+//		snow fog
+//		snow fog density <alpha>									default: 0.3
+//
+//	RAIN
+//		rain init <particles>
+//		rain remove
+//		rain fog
+//		rain fog density <alpha>									default: 0.3
+//		rain fall ( minVelocity maxVelocity )						default: ( -60 -50 )
+//		rain spread ( radius height )								default: ( 20 20 )
+//		rain alpha <float>											default: 0.1
+//		rain height <float>											default: 5
+//		rain angle <float>											default: 1.0
+//
+//	DEBUG
+//		debug wind
+
+void R_WorldEffectCommand(const char *command)
+{
+	char		*token;
+	const char	*origCommand;
+
+	origCommand = command;
+	token = COM_ParseExt((const char **)&command, qfalse);
+
+	if (Q_stricmp(token, "snow") == 0)
+	{
+		origCommand = command;
+
+		token = COM_ParseExt((const char **)&command, qfalse);
+		if (Q_stricmp(token, "init") == 0)
+		{	//	snow init <particles>
+			token = COM_ParseExt((const char **)&command, qfalse);
+			if (snowSystem)
+			{
+				delete snowSystem;
+			}
+			snowSystem = new CSnowSystem(atoi(token));
+		}
+		else if (Q_stricmp(token, "remove") == 0)
+		{	//	snow remove
+			if (snowSystem)
+			{
+				delete snowSystem;
+				snowSystem = 0;
+			}
+		}
+		else if (snowSystem)
+		{
+			snowSystem->Command(origCommand);
+		}
+	}
+	else if (Q_stricmp(token, "rain") == 0)
+	{
+		origCommand = command;
+
+		token = COM_ParseExt((const char **)&command, qfalse);
+		if (Q_stricmp(token, "init") == 0)
+		{	//	rain init <particles>
+			token = COM_ParseExt((const char **)&command, qfalse);
+			if (rainSystem)
+			{
+				delete rainSystem;
+			}
+			rainSystem = new CRainSystem(atoi(token));
+		}
+		else if (Q_stricmp(token, "remove") == 0)
+		{	//	rain remove
+			if (rainSystem)
+			{
+				delete rainSystem;
+				rainSystem = 0;
+			}
+		}
+		else if (rainSystem)
+		{
+			rainSystem->Command(origCommand);
+		}
+	}
+	else if (Q_stricmp(token, "debug") == 0)
+	{
+		token = COM_ParseExt((const char **)&command, qfalse);
+		if (Q_stricmp(token, "wind") == 0)
+		{
+			debugShowWind = !debugShowWind;
+		}
+		else if (Q_stricmp(token, "blah") == 0)
+		{
+			R_WorldEffectCommand("snow init 1000");
+			R_WorldEffectCommand("snow alpha 1");
+			R_WorldEffectCommand("snow fog");
+		}
+	}
+	else if (Q_stricmp(token, "exec") == 0)
+	{
+		ri.Cmd_ExecuteText(EXEC_NOW, command);
+	}
+}
+
+void R_WorldEffect_f(void)
+{
+	char		temp[2048];
+
+	ri.Cmd_ArgsBuffer(temp, sizeof(temp));
+	R_WorldEffectCommand(temp);
+}
 
 bool R_GetWindVector(vec3_t windVector)
 {
-	VectorCopy(mGlobalWindDirection.v, windVector);
-	return true;
+	if (rainSystem)
+	{
+		VectorCopy(rainSystem->GetVecVariable(CRainSystem::RAINSYSTEM_WIND_DIRECTION), windVector);
+		return true;
+	}
+
+	if (snowSystem)
+	{
+		VectorCopy(snowSystem->GetVecVariable(CRainSystem::RAINSYSTEM_WIND_DIRECTION), windVector);
+		return true;
+	}
+
+
+	return false;
 }
 
 bool R_GetWindSpeed(float &windSpeed)
 {
-	windSpeed = mGlobalWindSpeed;
-	return true;
-}
-
-bool R_GetWindGusting()
-{
-	return (mGlobalWindSpeed>1000.0f);
-}
-
-
-
-////////////////////////////////////////////////////////////////////////////////////////
-// Outside Point Cache
-////////////////////////////////////////////////////////////////////////////////////////
-class COutside
-{
-public:
-	////////////////////////////////////////////////////////////////////////////////////
-	//Global Public Outside Variables
-	////////////////////////////////////////////////////////////////////////////////////
-	bool			mOutsideShake;
-	float			mOutsidePain;
-
-private:
-	////////////////////////////////////////////////////////////////////////////////////
-	// The Outside Cache
-	////////////////////////////////////////////////////////////////////////////////////
-	bool			mCacheInit;			// Has It Been Cached?
-
-	struct SWeatherZone
+	if (rainSystem)
 	{
-		static bool	mMarkedOutside;
-		uint32_t*		mPointCache;
-		SVecRange	mExtents;
-		SVecRange	mSize;
-		int			mWidth;
-		int			mHeight;
-		int			mDepth;
-
-		////////////////////////////////////////////////////////////////////////////////////
-		// Convert To Cell
-		////////////////////////////////////////////////////////////////////////////////////
-		inline	void	ConvertToCell(const CVec3& pos, int& x, int& y, int& z, int& bit)
-		{
-			x = (int)((pos[0] / POINTCACHE_CELL_SIZE) - mSize.mMins[0]);
-			y = (int)((pos[1] / POINTCACHE_CELL_SIZE) - mSize.mMins[1]);
-			z = (int)((pos[2] / POINTCACHE_CELL_SIZE) - mSize.mMins[2]);
-
-			bit = (z & 31);
-			z >>= 5;
-		}
-
-		////////////////////////////////////////////////////////////////////////////////////
-		// CellOutside - Test to see if a given cell is outside
-		////////////////////////////////////////////////////////////////////////////////////
-		inline	bool	CellOutside(int x, int y, int z, int bit)
-		{
-			if ((x < 0 || x >= mWidth) || (y < 0 || y >= mHeight) || (z < 0 || z >= mDepth) || (bit < 0 || bit >= 32))
-			{
-				return !(mMarkedOutside);
-			}
-			return (mMarkedOutside==(!!(mPointCache[((z * mWidth * mHeight) + (y * mWidth) + x)]&(1 << bit))));
-		}
-	};
-	ratl::vector_vs<SWeatherZone, MAX_WEATHER_ZONES>	mWeatherZones;
-
-
-private:
-	////////////////////////////////////////////////////////////////////////////////////
-	// Iteration Variables
-	////////////////////////////////////////////////////////////////////////////////////
-	int				mWCells;
-	int				mHCells;
-
-	int				mXCell;
-	int				mYCell;
-	int				mZBit;
-
-	int				mXMax;
-	int				mYMax;
-	int				mZMax;
-
-
-private:
-
-
-	////////////////////////////////////////////////////////////////////////////////////
-	// Contents Outside
-	////////////////////////////////////////////////////////////////////////////////////
-	inline	bool	ContentsOutside(int contents)
-	{
-		if (contents&CONTENTS_WATER || contents&CONTENTS_SOLID)
-		{
-			return false;
-		}
-		if (mCacheInit)
-		{
-			if (SWeatherZone::mMarkedOutside)
-			{
-				return (!!(contents&CONTENTS_OUTSIDE));
-			}
-			return (!(contents&CONTENTS_INSIDE));
-		}
-		return !!(contents&CONTENTS_OUTSIDE);
+		windSpeed = rainSystem->GetFloatVariable(CRainSystem::RAINSYSTEM_WIND_SPEED);
+		return true;
 	}
 
-
-
-
-public:
-	////////////////////////////////////////////////////////////////////////////////////
-	// Constructor - Will setup default values for all data
-	////////////////////////////////////////////////////////////////////////////////////
-	void Reset()
-	{
-		mOutsideShake = false;
-		mOutsidePain = 0.0;
-		mCacheInit = false;
-		SWeatherZone::mMarkedOutside = false;
-		for (int wz=0; wz<mWeatherZones.size(); wz++)
-		{
-			Z_Free(mWeatherZones[wz].mPointCache);
-			mWeatherZones[wz].mPointCache = 0;
-		}
-		mWeatherZones.clear();
-	}
-
-	COutside()
-	{
-		Reset();
-	}
-	~COutside()
-	{
-		Reset();
-	}
-
-	bool			Initialized()
-	{
-		return mCacheInit;
-	}
-
-	////////////////////////////////////////////////////////////////////////////////////
-	// AddWeatherZone - Will add a zone of mins and maxes
-	////////////////////////////////////////////////////////////////////////////////////
-	void			AddWeatherZone(vec3_t mins, vec3_t maxs)
-	{
-		if (!mWeatherZones.full())
-		{
-			SWeatherZone&	Wz = mWeatherZones.push_back();
-			Wz.mExtents.mMins = mins;
-			Wz.mExtents.mMaxs = maxs;
-
-			SnapVectorToGrid(Wz.mExtents.mMins, POINTCACHE_CELL_SIZE);
-			SnapVectorToGrid(Wz.mExtents.mMaxs, POINTCACHE_CELL_SIZE);
-
-			Wz.mSize.mMins = Wz.mExtents.mMins;
-			Wz.mSize.mMaxs = Wz.mExtents.mMaxs;
-
-			Wz.mSize.mMins /= POINTCACHE_CELL_SIZE;
-			Wz.mSize.mMaxs /= POINTCACHE_CELL_SIZE;
-			Wz.mWidth		=  (int)(Wz.mSize.mMaxs[0] - Wz.mSize.mMins[0]);
-			Wz.mHeight		=  (int)(Wz.mSize.mMaxs[1] - Wz.mSize.mMins[1]);
-			Wz.mDepth		= ((int)(Wz.mSize.mMaxs[2] - Wz.mSize.mMins[2]) + 31) >> 5;
-
-			int arraySize	= (Wz.mWidth * Wz.mHeight * Wz.mDepth);
-			Wz.mPointCache  = (uint32_t *)Z_Malloc(arraySize*sizeof(uint32_t), TAG_POINTCACHE, qtrue);
-		}
-	}
-
-
-
-	////////////////////////////////////////////////////////////////////////////////////
-	// Cache - Will Scan the World, Creating The Cache
-	////////////////////////////////////////////////////////////////////////////////////
-	void			Cache()
-	{
-		if (!tr.world || mCacheInit)
-		{
-			return;
-		}
-
-		CVec3		CurPos;
-		CVec3		Size;
-		CVec3		Mins;
-		int			x, y, z, q, zbase;
-		bool		curPosOutside;
-		uint32_t		contents;
-		uint32_t		bit;
-
-
-		// Record The Extents Of The World Incase No Other Weather Zones Exist
-		//---------------------------------------------------------------------
-		if (!mWeatherZones.size())
-		{
-			ri.Printf( PRINT_ALL, "WARNING: No Weather Zones Encountered\n");
-			AddWeatherZone(tr.world->bmodels[0].bounds[0], tr.world->bmodels[0].bounds[1]);
-		}
-
-		// Iterate Over All Weather Zones
-		//--------------------------------
-		for (int zone=0; zone<mWeatherZones.size(); zone++)
-		{
-			SWeatherZone	wz = mWeatherZones[zone];
-
-			// Make Sure Point Contents Checks Occur At The CENTER Of The Cell
-			//-----------------------------------------------------------------
-			Mins = wz.mExtents.mMins;
-			for (x=0; x<3; x++)
-			{
-				Mins[x] += (POINTCACHE_CELL_SIZE/2);
-			}
-
-
-			// Start Scanning
-			//----------------
-			for(z = 0; z < wz.mDepth; z++)
-			{
-				for(q = 0; q < 32; q++)
-				{
-					bit = (1 << q);
-					zbase = (z << 5);
-
-					for(x = 0; x < wz.mWidth; x++)
-					{
-						for(y = 0; y < wz.mHeight; y++)
-						{
-							CurPos[0] = x			* POINTCACHE_CELL_SIZE;
-							CurPos[1] = y			* POINTCACHE_CELL_SIZE;
-							CurPos[2] = (zbase + q)	* POINTCACHE_CELL_SIZE;
-							CurPos	  += Mins;
-
-							contents = ri.CM_PointContents(CurPos.v, 0);
-							if (contents&CONTENTS_INSIDE || contents&CONTENTS_OUTSIDE)
-							{
-								curPosOutside = ((contents&CONTENTS_OUTSIDE)!=0);
-								if (!mCacheInit)
-								{
-									mCacheInit = true;
-									SWeatherZone::mMarkedOutside = curPosOutside;
-								}
-								else if (SWeatherZone::mMarkedOutside!=curPosOutside)
-								{
-									assert(0);
-									Com_Error (ERR_DROP, "Weather Effect: Both Indoor and Outdoor brushs encountered in map.\n" );
-									return;
-								}
-
-								// Mark The Point
-								//----------------
-								wz.mPointCache[((z * wz.mWidth * wz.mHeight) + (y * wz.mWidth) + x)] |= bit;
-							}
-						}// for (y)
-					}// for (x)
-				}// for (q)
-			}// for (z)
-		}
-
-
-		// If no indoor or outdoor brushes were found
-		//--------------------------------------------
-		if (!mCacheInit)
-		{
-			mCacheInit = true;
-			SWeatherZone::mMarkedOutside = false;		// Assume All Is Outside, Except Solid
-		}
-	}
-
-
-
-
-public:
-	////////////////////////////////////////////////////////////////////////////////////
-	// PointOutside - Test to see if a given point is outside
-	////////////////////////////////////////////////////////////////////////////////////
-	inline	bool	PointOutside(const CVec3& pos)
-	{
-		if (!mCacheInit)
-		{
-			return ContentsOutside(ri.CM_PointContents(pos.v, 0));
-		}
-		for (int zone=0; zone<mWeatherZones.size(); zone++)
-		{
-			SWeatherZone	wz = mWeatherZones[zone];
-			if (wz.mExtents.In(pos))
-			{
-				int		bit, x, y, z;
-				wz.ConvertToCell(pos, x, y, z, bit);
-				return wz.CellOutside(x, y, z, bit);
-			}
-		}
-		return !(SWeatherZone::mMarkedOutside);
-
-	}
-
-
-	////////////////////////////////////////////////////////////////////////////////////
-	// PointOutside - Test to see if a given bounded plane is outside
-	////////////////////////////////////////////////////////////////////////////////////
-	inline	bool	PointOutside(const CVec3& pos, float width, float height)
-	{
-		for (int zone=0; zone<mWeatherZones.size(); zone++)
-		{
-			SWeatherZone	wz = mWeatherZones[zone];
-			if (wz.mExtents.In(pos))
-			{
-				int		bit, x, y, z;
-				wz.ConvertToCell(pos, x, y, z, bit);
-				if (width<POINTCACHE_CELL_SIZE || height<POINTCACHE_CELL_SIZE)
-				{
- 					return (wz.CellOutside(x, y, z, bit));
-				}
-
-				mWCells = ((int)width  / POINTCACHE_CELL_SIZE);
-				mHCells = ((int)height / POINTCACHE_CELL_SIZE);
-
-				mXMax = x + mWCells;
-				mYMax = y + mWCells;
-				mZMax = bit + mHCells;
-
-				for (mXCell=x-mWCells; mXCell<=mXMax; mXCell++)
-				{
-					for (mYCell=y-mWCells; mYCell<=mYMax; mYCell++)
-					{
-						for (mZBit=bit-mHCells; mZBit<=mZMax; mZBit++)
-						{
-							if (!wz.CellOutside(mXCell, mYCell, z, mZBit))
-							{
-								return false;
-							}
-						}
-					}
-				}
-				return true;
-			}
-		}
-		return !(SWeatherZone::mMarkedOutside);
-	}
-};
-COutside			mOutside;
-bool				COutside::SWeatherZone::mMarkedOutside = false;
-
-
-void RE_AddWeatherZone(vec3_t mins, vec3_t maxs)
-{
-	mOutside.AddWeatherZone(mins, maxs);
-}
-
-bool R_IsOutside(vec3_t pos)
-{
-	return mOutside.PointOutside(pos);
-}
-
-bool R_IsShaking()
-{
-	return (mOutside.mOutsideShake && mOutside.PointOutside(backEnd.viewParms.ori.origin));
-}
-
-float R_IsOutsideCausingPain(vec3_t pos)
-{
-	return (mOutside.mOutsidePain && mOutside.PointOutside(pos));
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////
-// Particle Cloud
-////////////////////////////////////////////////////////////////////////////////////////
-class	CWeatherParticleCloud
-{
-private:
-	////////////////////////////////////////////////////////////////////////////////////
-	// DYNAMIC MEMORY
-	////////////////////////////////////////////////////////////////////////////////////
-	image_t*	mImage;
-	CWeatherParticle*	mParticles;
-
-private:
-	////////////////////////////////////////////////////////////////////////////////////
-	// RUN TIME VARIANTS
-	////////////////////////////////////////////////////////////////////////////////////
-	float		mSpawnSpeed;
-	CVec3		mSpawnPlaneNorm;
-	CVec3		mSpawnPlaneRight;
-	CVec3		mSpawnPlaneUp;
-	SVecRange	mRange;
-
-	CVec3		mCameraPosition;
-	CVec3		mCameraForward;
-	CVec3		mCameraLeft;
-	CVec3		mCameraDown;
-	CVec3		mCameraLeftPlusUp;
-	CVec3		mCameraLeftMinusUp;
-
-
-	int			mParticleCountRender;
-	int			mGLModeEnum;
-
-	bool		mPopulated;
-
-
-public:
-	////////////////////////////////////////////////////////////////////////////////////
-	// CONSTANTS
-	////////////////////////////////////////////////////////////////////////////////////
-	bool		mOrientWithVelocity;
-	float		mSpawnPlaneSize;
-	float		mSpawnPlaneDistance;
-	SVecRange	mSpawnRange;
-
-	float		mGravity;			// How much gravity affects the velocity of a particle
-	CVec4		mColor;				// RGBA color
-	int			mVertexCount;		// 3 for triangle, 4 for quad, other numbers not supported
-
-	float		mWidth;
-	float		mHeight;
-
-	int			mBlendMode;			// 0 = ALPHA, 1 = SRC->SRC
-	int			mFilterMode;		// 0 = LINEAR, 1 = NEAREST
-
-	float		mFade;				// How much to fade in and out 1.0 = instant, 0.01 = very slow
-
-	SFloatRange	mRotation;
-	float		mRotationDelta;
-	float		mRotationDeltaTarget;
-	float		mRotationCurrent;
-	SIntRange	mRotationChangeTimer;
-	int			mRotationChangeNext;
-
-	SFloatRange	mMass;				// Determines how slowness to accelerate, higher number = slower
-	float		mFrictionInverse;	// How much air friction does this particle have 1.0=none, 0.0=nomove
-
-	int			mParticleCount;
-
-	bool		mWaterParticles;
-
-
-
-
-public:
-	////////////////////////////////////////////////////////////////////////////////////
-	// Initialize - Create Image, Particles, And Setup All Values
-	////////////////////////////////////////////////////////////////////////////////////
-	void	Initialize(int count, const char* texturePath, int VertexCount=4)
-	{
-		Reset();
-		assert(mParticleCount==0 && mParticles==0);
-		assert(mImage==0);
-
-		// Create The Image
-		//------------------
-		imgFlags_t flags;
-
-		flags = IMGFLAG_NONE;
-
-		mImage = R_FindImageFile(texturePath, flags);
-		if (!mImage)
-		{
-			vk_debug("CWeatherParticleCloud: Could not texture %s", texturePath);
-		}
-
-		//GL_Bind(mImage);
-
-
-
-		// Create The Particles
-		//----------------------
-		mParticleCount	= count;
-		mParticles		= new CWeatherParticle[mParticleCount];
-
-
-
-		CWeatherParticle*	part=0;
-		for (int particleNum=0; particleNum<mParticleCount; particleNum++)
-		{
-			part = &(mParticles[particleNum]);
-			part->mPosition.Clear();
-			part->mVelocity.Clear();
-			part->mAlpha	= 0.0f;
-			mMass.Pick(part->mMass);
-		}
-
-		mVertexCount = VertexCount;
-
-		mGLModeEnum = (mVertexCount==3)?(GL_TRIANGLES):(GL_QUADS);
-	}
-
-
-	////////////////////////////////////////////////////////////////////////////////////
-	// Reset - Initializes all data to default values
-	////////////////////////////////////////////////////////////////////////////////////
-	void		Reset()
-	{
-		if (mImage)
-		{
-			// TODO: Free Image?
-		}
-		mImage				= 0;
-		if (mParticleCount)
-		{
-			delete [] mParticles;
-		}
-		mParticleCount		= 0;
-		mParticles			= 0;
-
-		mPopulated			= 0;
-
-
-
-		// These Are The Default Startup Values For Constant Data
-		//========================================================
-		mOrientWithVelocity = false;
-		mWaterParticles		= false;
-
-		mSpawnPlaneDistance	= 500;
-		mSpawnPlaneSize		= 500;
-		mSpawnRange.mMins	= -(mSpawnPlaneDistance*1.25f);
-		mSpawnRange.mMaxs	=  (mSpawnPlaneDistance*1.25f);
-
-		mGravity			= 300.0f;	// Units Per Second
-
-		mColor				= 1.0f;
-
-		mVertexCount		= 4;
-		mWidth				= 1.0f;
-		mHeight				= 1.0f;
-
-		mBlendMode			= 0;
-		mFilterMode			= 0;
-
-		mFade				= 10.0f;
-
-		mRotation.Clear();
-		mRotationDelta		= 0.0f;
-		mRotationDeltaTarget= 0.0f;
-		mRotationCurrent	= 0.0f;
-		mRotationChangeNext	= -1;
-		mRotation.mMin		= -0.7f;
-		mRotation.mMax		=  0.7f;
-		mRotationChangeTimer.mMin = 500;
-		mRotationChangeTimer.mMax = 2000;
-
-		mMass.mMin			= 5.0f;
-		mMass.mMax			= 10.0f;
-
-		mFrictionInverse	= 0.7f;		// No Friction?
-	}
-
-	////////////////////////////////////////////////////////////////////////////////////
-	// Constructor - Will setup default values for all data
-	////////////////////////////////////////////////////////////////////////////////////
-	CWeatherParticleCloud()
-	{
-		mImage = 0;
-		mParticleCount = 0;
-		Reset();
-	}
-
-	////////////////////////////////////////////////////////////////////////////////////
-	// Initialize - Will setup default values for all data
-	////////////////////////////////////////////////////////////////////////////////////
-	~CWeatherParticleCloud()
-	{
-		Reset();
-	}
-
-
-	////////////////////////////////////////////////////////////////////////////////////
-	// UseSpawnPlane - Check To See If We Should Spawn On A Plane, Or Just Wrap The Box
-	////////////////////////////////////////////////////////////////////////////////////
-	inline bool	UseSpawnPlane()
-	{
-		return (mGravity!=0.0f);
-	}
-
-
-	////////////////////////////////////////////////////////////////////////////////////
-	// Update - Applies All Physics Forces To All Contained Particles
-	////////////////////////////////////////////////////////////////////////////////////
-	void		Update()
-	{
-		CWeatherParticle*	part=0;
-		CVec3		partForce;
-		CVec3		partMoved;
-		CVec3		partToCamera;
-		bool		partRendering;
-		bool		partOutside;
-		bool		partInRange;
-		bool		partInView;
-		int			particleNum;
-		float		particleFade = (mFade * mSecondsElapsed);
-
-/* TODO: Non Global Wind Zones
-		CWindZone*	wind=0;
-		int			windNum;
-		int			windCount = mWindZones.size();
-*/
-
-		// Compute Camera
-		//----------------
-		{
-			mCameraPosition	= backEnd.viewParms.ori.origin;
-			mCameraForward	= backEnd.viewParms.ori.axis[0];
-			mCameraLeft		= backEnd.viewParms.ori.axis[1];
-			mCameraDown		= backEnd.viewParms.ori.axis[2];
-
-			if (mRotationChangeNext!=-1)
-			{
-				if (mRotationChangeNext==0)
-				{
-					mRotation.Pick(mRotationDeltaTarget);
-					mRotationChangeTimer.Pick(mRotationChangeNext);
-					if (mRotationChangeNext<=0)
-					{
-						mRotationChangeNext = 1;
-					}
-				}
-				mRotationChangeNext--;
-
-				float	RotationDeltaDifference = (mRotationDeltaTarget - mRotationDelta);
-				if (fabsf(RotationDeltaDifference)>0.01)
-				{
-					mRotationDelta += RotationDeltaDifference;		// Blend To New Delta
-				}
-                mRotationCurrent += (mRotationDelta * mSecondsElapsed);
-				float s = sinf(mRotationCurrent);
-				float c = cosf(mRotationCurrent);
-
-				CVec3	TempCamLeft(mCameraLeft);
-
-				mCameraLeft *= (c * mWidth);
-				mCameraLeft.ScaleAdd(mCameraDown, (s * mWidth * -1.0f));
-
-				mCameraDown *= (c * mHeight);
-				mCameraDown.ScaleAdd(TempCamLeft, (s * mHeight));
-			}
-			else
-			{
-				mCameraLeft		*= mWidth;
- 				mCameraDown		*= mHeight;
-			}
-		}
-
-
-		// Compute Global Force
-		//----------------------
-		CVec3		force;
-		{
-			force.Clear();
-
-			// Apply Gravity
-			//---------------
-			force[2] = -1.0f * mGravity;
-
-			// Apply Wind Velocity
-			//---------------------
-			force    += mGlobalWindVelocity;
-		}
-
-
-		// Update Range
-		//--------------
-		{
-			mRange.mMins = mCameraPosition + mSpawnRange.mMins;
-			mRange.mMaxs = mCameraPosition + mSpawnRange.mMaxs;
-
-			// If Using A Spawn Plane, Increase The Range Box A Bit To Account For Rotation On The Spawn Plane
-			//-------------------------------------------------------------------------------------------------
-			if (UseSpawnPlane())
-			{
-				for (int dim=0; dim<3; dim++)
-				{
-					if (force[dim]>0.01)
-					{
-						mRange.mMins[dim] -= (mSpawnPlaneDistance/2.0f);
-					}
-					else if (force[dim]<-0.01)
-					{
-						mRange.mMaxs[dim] += (mSpawnPlaneDistance/2.0f);
-					}
-				}
-				mSpawnPlaneNorm	= force;
-				mSpawnSpeed		= VectorNormalize(mSpawnPlaneNorm.v);
-				MakeNormalVectors(mSpawnPlaneNorm.v, mSpawnPlaneRight.v, mSpawnPlaneUp.v);
-				if (mOrientWithVelocity)
-				{
-					mCameraDown = mSpawnPlaneNorm;
-					mCameraDown *= (mHeight * -1);
-				}
-			}
-
-			// Optimization For Quad Position Calculation
-			//--------------------------------------------
-			if (mVertexCount==4)
-			{
-		 		mCameraLeftPlusUp  = (mCameraLeft - mCameraDown);
-				mCameraLeftMinusUp = (mCameraLeft + mCameraDown);
-			}
-			else
-			{
-				mCameraLeftPlusUp  = (mCameraDown + mCameraLeft);		// should really be called mCamera Left + Down
-			}
-		}
-
-		// Stop All Additional Processing
-		//--------------------------------
-		if (mFrozen)
-		{
-			return;
-		}
-
-
-
-		// Now Update All Particles
-		//--------------------------
-		mParticleCountRender = 0;
-		for (particleNum=0; particleNum<mParticleCount; particleNum++)
-		{
-			part			= &mParticles[particleNum];
-
-			if (!mPopulated)
-			{
-				mRange.Pick(part->mPosition);		// First Time Spawn Location
-			}
-
-			// Grab The Force And Apply Non Global Wind
-			//------------------------------------------
-			partForce = force;
-			partForce /= part->mMass;
-
-
-			// Apply The Force
-			//-----------------
-			part->mVelocity		+= partForce;
-			part->mVelocity		*= mFrictionInverse;
-
-			part->mPosition.ScaleAdd(part->mVelocity, mSecondsElapsed);
-
-			partToCamera	= (part->mPosition - mCameraPosition);
-			partRendering	= part->mFlags.get_bit(CWeatherParticle::FLAG_RENDER);
-			partOutside		= mOutside.PointOutside(part->mPosition, mWidth, mHeight);
-			partInRange		= mRange.In(part->mPosition);
-			partInView		= (partOutside && partInRange && (partToCamera.Dot(mCameraForward)>0.0f));
-
-			// Process Respawn
-			//-----------------
-			if (!partInRange && !partRendering)
-			{
-				part->mVelocity.Clear();
-
-				// Reselect A Position On The Spawn Plane
-				//----------------------------------------
-				if (UseSpawnPlane())
-				{
-					part->mPosition		= mCameraPosition;
-					part->mPosition		-= (mSpawnPlaneNorm* mSpawnPlaneDistance);
-					part->mPosition		+= (mSpawnPlaneRight*WE_flrand(-mSpawnPlaneSize, mSpawnPlaneSize));
-					part->mPosition		+= (mSpawnPlaneUp*   WE_flrand(-mSpawnPlaneSize, mSpawnPlaneSize));
-				}
-
-				// Otherwise, Just Wrap Around To The Other End Of The Range
-				//-----------------------------------------------------------
-				else
-				{
-					mRange.Wrap(part->mPosition, mSpawnRange);
-				}
-				partInRange = true;
-			}
-
-			// Process Fade
-			//--------------
-			{
-				// Start A Fade Out
-				//------------------
-				if		(partRendering && !partInView)
-				{
-					part->mFlags.clear_bit(CWeatherParticle::FLAG_FADEIN);
-					part->mFlags.set_bit(CWeatherParticle::FLAG_FADEOUT);
-				}
-
-				// Switch From Fade Out To Fade In
-				//---------------------------------
-				else if (partRendering && partInView && part->mFlags.get_bit(CWeatherParticle::FLAG_FADEOUT))
-				{
-					part->mFlags.set_bit(CWeatherParticle::FLAG_FADEIN);
-					part->mFlags.clear_bit(CWeatherParticle::FLAG_FADEOUT);
-				}
-
-				// Start A Fade In
-				//-----------------
-				else if (!partRendering && partInView)
-				{
-					partRendering = true;
-					part->mAlpha = 0.0f;
-					part->mFlags.set_bit(CWeatherParticle::FLAG_RENDER);
-					part->mFlags.set_bit(CWeatherParticle::FLAG_FADEIN);
-					part->mFlags.clear_bit(CWeatherParticle::FLAG_FADEOUT);
-				}
-
-				// Update Fade
-				//-------------
-				if (partRendering)
-				{
-
-					// Update Fade Out
-					//-----------------
-					if (part->mFlags.get_bit(CWeatherParticle::FLAG_FADEOUT))
-					{
-						part->mAlpha -= particleFade;
-						if (part->mAlpha<=0.0f)
-						{
-							part->mAlpha = 0.0f;
-							part->mFlags.clear_bit(CWeatherParticle::FLAG_FADEOUT);
-							part->mFlags.clear_bit(CWeatherParticle::FLAG_FADEIN);
-							part->mFlags.clear_bit(CWeatherParticle::FLAG_RENDER);
-							partRendering = false;
-						}
-					}
-
-					// Update Fade In
-					//----------------
-					else if (part->mFlags.get_bit(CWeatherParticle::FLAG_FADEIN))
-					{
-						part->mAlpha += particleFade;
-						if (part->mAlpha>=mColor[3])
-						{
-							part->mFlags.clear_bit(CWeatherParticle::FLAG_FADEIN);
-							part->mAlpha = mColor[3];
-						}
-					}
-				}
-			}
-
-			// Keep Track Of The Number Of Particles To Render
-			//-------------------------------------------------
-			if (part->mFlags.get_bit(CWeatherParticle::FLAG_RENDER))
-			{
-				mParticleCountRender ++;
-			}
-
-
-
-
-
-		}
-		mPopulated = true;
-	}
-
-	////////////////////////////////////////////////////////////////////////////////////
-	// Render -
-	////////////////////////////////////////////////////////////////////////////////////
-	void		Render()
-	{
-		int					i, particleNum;
-		CWeatherParticle	*part = 0;
-
-		// quick start to continue on later. some time.
-		for (particleNum = 0; particleNum < mParticleCount; particleNum++) {
-			part = &(mParticles[particleNum]);
-
-			if (!part->mFlags.get_bit(CWeatherParticle::FLAG_RENDER))
-				continue;
-
-			if (tess.numVertexes > SHADER_MAX_VERTEXES - 4)
-				break;
-
-			// blend Mode Zero -> Apply Alpha Just To Alpha Channel
-			if (mBlendMode == 0) {
-				for (i = 0; i < 4; i++) {
-					tess.svars.colors[0][tess.numVertexes + i][0] = mColor[0] * 255;
-					tess.svars.colors[0][tess.numVertexes + i][1] = mColor[1] * 255;
-					tess.svars.colors[0][tess.numVertexes + i][2] = mColor[2] * 255;
-					tess.svars.colors[0][tess.numVertexes + i][3] = part->mAlpha * 255;
-				}
-			}
-
-			// otherwise Apply Alpha To All Channels
-			else {
-				for (i = 0; i < 4; i++) {
-					tess.svars.colors[0][tess.numVertexes + i][0] = (mColor[0] * part->mAlpha) * 255;
-					tess.svars.colors[0][tess.numVertexes + i][1] = (mColor[1] * part->mAlpha) * 255;
-					tess.svars.colors[0][tess.numVertexes + i][2] = (mColor[2] * part->mAlpha) * 255;
-					tess.svars.colors[0][tess.numVertexes + i][3] = (mColor[3] * part->mAlpha) * 255;
-				}
-			}
-
-			// render A Triangle
-			if (mVertexCount == 3)
-			{
-				for (i = 0; i < 3; i++) {
-					tess.xyz[tess.numVertexes + 0][i] = part->mPosition[i] ;
-					tess.xyz[tess.numVertexes + 1][i] = part->mPosition[i] + mCameraLeft[i];
-					tess.xyz[tess.numVertexes + 2][i] = part->mPosition[i] + mCameraLeftPlusUp[i];
-				}
-
-				tess.texCoords[0][tess.numVertexes][0] = 1;
-				tess.texCoords[0][tess.numVertexes][1] = 0;
-				tess.texCoords[0][tess.numVertexes + 1][0] = 0;
-				tess.texCoords[0][tess.numVertexes + 1][1] = 1;
-				tess.texCoords[0][tess.numVertexes + 2][0] = 0;
-				tess.texCoords[0][tess.numVertexes + 2][1] = 0;
-
-				tess.indexes[tess.numIndexes++] = tess.numVertexes + 0;
-				tess.indexes[tess.numIndexes++] = tess.numVertexes + 1;
-				tess.indexes[tess.numIndexes++] = tess.numVertexes + 2;
-
-				tess.numVertexes += 3;
-			}
-
-			// render A Quad
-			else
-			{
-				for (i = 0; i < 3; i++) {
-					tess.xyz[tess.numVertexes + 0][i] = part->mPosition[i] - mCameraLeftMinusUp[i];
-					tess.xyz[tess.numVertexes + 1][i] = part->mPosition[i] - mCameraLeftPlusUp[i];
-					tess.xyz[tess.numVertexes + 2][i] = part->mPosition[i] + mCameraLeftMinusUp[i];
-					tess.xyz[tess.numVertexes + 3][i] = part->mPosition[i] + mCameraLeftPlusUp[i];
-				}
-
-				tess.texCoords[0][tess.numVertexes][0] = 0;
-				tess.texCoords[0][tess.numVertexes][1] = 0;
-				tess.texCoords[0][tess.numVertexes + 1][0] = 0;
-				tess.texCoords[0][tess.numVertexes + 1][1] = 1;
-				tess.texCoords[0][tess.numVertexes + 2][0] = 1;
-				tess.texCoords[0][tess.numVertexes + 2][1] = 1;
-				tess.texCoords[0][tess.numVertexes + 3][0] = 1;
-				tess.texCoords[0][tess.numVertexes + 3][1] = 0;
-
-				tess.indexes[tess.numIndexes++] = tess.numVertexes;
-				tess.indexes[tess.numIndexes++] = tess.numVertexes + 1;
-				tess.indexes[tess.numIndexes++] = tess.numVertexes + 2;
-				tess.indexes[tess.numIndexes++] = tess.numVertexes + 0;
-				tess.indexes[tess.numIndexes++] = tess.numVertexes + 2;
-				tess.indexes[tess.numIndexes++] = tess.numVertexes + 3;
-
-				tess.numVertexes += 4;
-			}
-		}
-
-		vk_select_texture(0);
-		vk_bind(mImage);
-
-		tess.svars.texcoordPtr[0] = tess.texCoords[0];
-
-		vk_bind_pipeline(vk.std_pipeline.worldeffect_pipeline[mBlendMode]);
-		vk_bind_index();
-		vk_bind_geometry(TESS_XYZ | TESS_RGBA0 | TESS_ST0);
-		vk_draw_geometry(DEPTH_RANGE_NORMAL, qtrue);
-
-		mParticlesRendered += mParticleCountRender;
-	}
-};
-ratl::vector_vs<CWeatherParticleCloud, MAX_PARTICLE_CLOUDS>	mParticleClouds;
-
-
-
-////////////////////////////////////////////////////////////////////////////////////////
-// Init World Effects - Will Iterate Over All Particle Clouds, Clear Them Out, And Erase
-////////////////////////////////////////////////////////////////////////////////////////
-void R_InitWorldEffects(void)
-{
-	srand(ri.Milliseconds());
-
-	for (int i=0; i<mParticleClouds.size(); i++)
-	{
-		mParticleClouds[i].Reset();
-	}
-	mParticleClouds.clear();
-	mWindZones.clear();
-	mOutside.Reset();
-}
-
-////////////////////////////////////////////////////////////////////////////////////////
-// Init World Effects - Will Iterate Over All Particle Clouds, Clear Them Out, And Erase
-////////////////////////////////////////////////////////////////////////////////////////
-void R_ShutdownWorldEffects(void)
-{
-	R_InitWorldEffects();
-}
-
-////////////////////////////////////////////////////////////////////////////////////////
-// RB_RenderWorldEffects - If any particle clouds exist, this will update and render them
-////////////////////////////////////////////////////////////////////////////////////////
-void RB_RenderWorldEffects(void)
-{
-	if (!tr.world ||
-		(tr.refdef.rdflags & RDF_NOWORLDMODEL) ||
-		(backEnd.refdef.rdflags & RDF_SKYBOXPORTAL) ||
-		!mParticleClouds.size())
-	{	//  no world rendering or no world or no particle clouds
-		return;
-	}
-
-	float				tmp[16];
-
-	Com_Memcpy(tmp, vk_world.modelview_transform, 64);
-	Com_Memcpy(vk_world.modelview_transform, backEnd.viewParms.world.modelMatrix, 64);
-	vk_update_mvp(NULL);
-
-	// Calculate Elapsed Time For Scale Purposes
-	//-------------------------------------------
-	mMillisecondsElapsed = backEnd.refdef.frametime;
-	if (mMillisecondsElapsed<1)
-	{
-		mMillisecondsElapsed = 1.0f;
-	}
-	if (mMillisecondsElapsed>1000.0f)
-	{
-		mMillisecondsElapsed = 1000.0f;
-	}
-	mSecondsElapsed = (mMillisecondsElapsed / 1000.0f);
-
-
-	// Make Sure We Are Always Outside Cached
-	//----------------------------------------
-	if (!mOutside.Initialized())
-	{
-		mOutside.Cache();
-	}
-	else
-	{
-		// Update All Wind Zones
-		//-----------------------
-		if (!mFrozen)
-		{
-			mGlobalWindVelocity.Clear();
-			for (int wz=0; wz<mWindZones.size(); wz++)
-			{
-				mWindZones[wz].Update();
-				if (mWindZones[wz].mGlobal)
-				{
-					mGlobalWindVelocity += mWindZones[wz].mCurrentVelocity;
-				}
-			}
-			mGlobalWindDirection	= mGlobalWindVelocity;
-			mGlobalWindSpeed		= VectorNormalize(mGlobalWindDirection.v);
-		}
-
-		// Update All Particle Clouds
-		//----------------------------
-		mParticlesRendered = 0;
-		
-		for (int i=0; i<mParticleClouds.size(); i++)
-		{
-			tess.numVertexes = 0;
-			tess.numIndexes = 0;
-
-			mParticleClouds[i].Update();
-			mParticleClouds[i].Render();
-		}
-
-		tess.numVertexes = 0;
-		tess.numIndexes = 0;
-
-		Com_Memcpy(vk_world.modelview_transform, tmp, 64);
-		vk_update_mvp(NULL);
-
-		if (false)
-		{
-			ri.Printf( PRINT_ALL, "Weather: %d Particles Rendered\n", mParticlesRendered);
-		}
-	}
-}
-
-
-void R_WorldEffect_f(void)
-{
-	char temp[2048] = {0};
-	ri.Cmd_ArgsBuffer( temp, sizeof( temp ) );
-	RE_WorldEffectCommand( temp );
-}
-
-/*
-===============
-WE_ParseVector
-===============
-*/
-qboolean WE_ParseVector( const char **text, int count, float *v ) {
-	char	*token;
-	int		i;
-
-	// FIXME: spaces are currently required after parens, should change parseext...
-	token = COM_ParseExt( text, qfalse );
-	if ( strcmp( token, "(" ) ) {
-		ri.Printf (PRINT_WARNING, "WARNING: missing parenthesis in weather effect\n" );
-		return qfalse;
-	}
-
-	for ( i = 0 ; i < count ; i++ ) {
-		token = COM_ParseExt( text, qfalse );
-		if ( !token[0] ) {
-			ri.Printf (PRINT_WARNING, "WARNING: missing vector element in weather effect\n" );
-			return qfalse;
-		}
-		v[i] = atof( token );
-	}
-
-	token = COM_ParseExt( text, qfalse );
-	if ( strcmp( token, ")" ) ) {
-		ri.Printf (PRINT_WARNING, "WARNING: missing parenthesis in weather effect\n" );
-		return qfalse;
-	}
-
-	return qtrue;
-}
-
-void RE_WorldEffectCommand(const char *command)
-{
-	if ( !command )
-	{
-		return;
-	}
-
-	COM_BeginParseSession ("RE_WorldEffectCommand");
-
-	const char	*token;//, *origCommand;
-
-	token = COM_ParseExt(&command, qfalse);
-
-	if ( !token )
-	{
-		return;
-	}
-
-
-	//Die - clean up the whole weather system -rww
-	if (Q_stricmp(token, "die") == 0)
-	{
-		R_ShutdownWorldEffects();
-		return;
-	}
-
-	// Clear - Removes All Particle Clouds And Wind Zones
-	//----------------------------------------------------
-	else if (Q_stricmp(token, "clear") == 0)
-	{
-		for (int p=0; p<mParticleClouds.size(); p++)
-		{
-			mParticleClouds[p].Reset();
-		}
-		mParticleClouds.clear();
-		mWindZones.clear();
-	}
-
-	// Freeze / UnFreeze - Stops All Particle Motion Updates
-	//--------------------------------------------------------
-	else if (Q_stricmp(token, "freeze") == 0)
-	{
-		mFrozen = !mFrozen;
-	}
-
-	// Add a zone
-	//---------------
-	else if (Q_stricmp(token, "zone") == 0)
-	{
-		vec3_t	mins;
-		vec3_t	maxs;
-		if (WE_ParseVector(&command, 3, mins) && WE_ParseVector(&command, 3, maxs))
-		{
-			mOutside.AddWeatherZone(mins, maxs);
-		}
-	}
-
-	// Basic Wind
-	//------------
-	else if (Q_stricmp(token, "wind") == 0)
-	{
-		if (mWindZones.full())
-		{
-			return;
-		}
-		CWindZone& nWind = mWindZones.push_back();
-		nWind.Initialize();
-	}
-
-	// Constant Wind
-	//---------------
-	else if (Q_stricmp(token, "constantwind") == 0)
-	{
-		if (mWindZones.full())
-		{
-			return;
-		}
-		CWindZone& nWind = mWindZones.push_back();
-		nWind.Initialize();
-		if (!WE_ParseVector(&command, 3, nWind.mCurrentVelocity.v))
-		{
-			nWind.mCurrentVelocity.Clear();
-			nWind.mCurrentVelocity[1] = 800.0f;
-		}
-		nWind.mTargetVelocityTimeRemaining = -1;
-	}
-
-	// Gusting Wind
-	//--------------
-	else if (Q_stricmp(token, "gustingwind") == 0)
-	{
-		if (mWindZones.full())
-		{
-			return;
-		}
-		CWindZone& nWind = mWindZones.push_back();
-		nWind.Initialize();
-		nWind.mRVelocity.mMins				= -3000.0f;
-		nWind.mRVelocity.mMins[2]			= -100.0f;
-		nWind.mRVelocity.mMaxs				=  3000.0f;
-		nWind.mRVelocity.mMaxs[2]			=  100.0f;
-
-		nWind.mMaxDeltaVelocityPerUpdate	=  10.0f;
-
-		nWind.mRDuration.mMin				=  1000;
-		nWind.mRDuration.mMax				=  3000;
-
-		nWind.mChanceOfDeadTime				=  0.5f;
-		nWind.mRDeadTime.mMin				=  2000;
-		nWind.mRDeadTime.mMax				=  4000;
-	}
-
-
-
-	// Create A Rain Storm
-	//---------------------
-	else if (Q_stricmp(token, "lightrain") == 0)
-	{
-		if (mParticleClouds.full())
-		{
-			return;
-		}
-		CWeatherParticleCloud& nCloud = mParticleClouds.push_back();
-		nCloud.Initialize(500, "gfx/world/rain.jpg", 3);
-		nCloud.mHeight		= 80.0f;
-		nCloud.mWidth		= 1.2f;
-		nCloud.mGravity		= 2000.0f;
-		nCloud.mFilterMode	= 1;
-		nCloud.mBlendMode	= 1;
-		nCloud.mFade		= 100.0f;
-		nCloud.mColor		= 0.5f;
-		nCloud.mOrientWithVelocity = true;
-		nCloud.mWaterParticles = true;
-	}
-
-	// Create A Rain Storm
-	//---------------------
-	else if (Q_stricmp(token, "rain") == 0)
-	{
-		if (mParticleClouds.full())
-		{
-			return;
-		}
-		CWeatherParticleCloud& nCloud = mParticleClouds.push_back();
-		nCloud.Initialize(1000, "gfx/world/rain.jpg", 3);
-		nCloud.mHeight		= 80.0f;
-		nCloud.mWidth		= 1.2f;
-		nCloud.mGravity		= 2000.0f;
-		nCloud.mFilterMode	= 1;
-		nCloud.mBlendMode	= 1;
-		nCloud.mFade		= 100.0f;
-		nCloud.mColor		= 0.5f;
-		nCloud.mOrientWithVelocity = true;
-		nCloud.mWaterParticles = true;
-	}
-
-	// Create A Rain Storm
-	//---------------------
-	else if (Q_stricmp(token, "acidrain") == 0)
-	{
-		if (mParticleClouds.full())
-		{
-			return;
-		}
-		CWeatherParticleCloud& nCloud = mParticleClouds.push_back();
-		nCloud.Initialize(1000, "gfx/world/rain.jpg", 3);
-		nCloud.mHeight		= 80.0f;
-		nCloud.mWidth		= 2.0f;
-		nCloud.mGravity		= 2000.0f;
-		nCloud.mFilterMode	= 1;
-		nCloud.mBlendMode	= 1;
-		nCloud.mFade		= 100.0f;
-
-		nCloud.mColor[0]	= 0.34f;
-		nCloud.mColor[1]	= 0.70f;
-		nCloud.mColor[2]	= 0.34f;
-		nCloud.mColor[3]	= 0.70f;
-
-		nCloud.mOrientWithVelocity = true;
-		nCloud.mWaterParticles = true;
-
-		mOutside.mOutsidePain = 0.1f;
-	}
-
-	// Create A Rain Storm
-	//---------------------
-	else if (Q_stricmp(token, "heavyrain") == 0)
-	{
-		if (mParticleClouds.full())
-		{
-			return;
-		}
-		CWeatherParticleCloud& nCloud = mParticleClouds.push_back();
-		nCloud.Initialize(1000, "gfx/world/rain.jpg", 3);
-		nCloud.mHeight		= 80.0f;
-		nCloud.mWidth		= 1.2f;
-		nCloud.mGravity		= 2800.0f;
-		nCloud.mFilterMode	= 1;
-		nCloud.mBlendMode	= 1;
-		nCloud.mFade		= 15.0f;
-		nCloud.mColor		= 0.5f;
-		nCloud.mOrientWithVelocity = true;
-		nCloud.mWaterParticles = true;
-	}
-
-	// Create A Snow Storm
-	//---------------------
-	else if (Q_stricmp(token, "snow") == 0)
-	{
-		if (mParticleClouds.full())
-		{
-			return;
-		}
-		CWeatherParticleCloud& nCloud = mParticleClouds.push_back();
-		nCloud.Initialize(1000, "gfx/effects/snowflake1.bmp");
-		nCloud.mBlendMode			= 1;
-		nCloud.mRotationChangeNext	= 0;
-		nCloud.mColor		= 0.75f;
-		nCloud.mWaterParticles = true;
-	}
-
-	// Create A Some stuff
-	//---------------------
-	else if (Q_stricmp(token, "spacedust") == 0)
-	{
-		int count;
-		if (mParticleClouds.full())
-		{
-			return;
-		}
-		token = COM_ParseExt(&command, qfalse);
-		count = atoi(token);
-
-		CWeatherParticleCloud& nCloud = mParticleClouds.push_back();
-		nCloud.Initialize(count, "gfx/effects/snowpuff1.tga");
-		nCloud.mHeight		= 1.2f;
-		nCloud.mWidth		= 1.2f;
-		nCloud.mGravity		= 0.0f;
-		nCloud.mBlendMode			= 1;
-		nCloud.mRotationChangeNext	= 0;
-		nCloud.mColor		= 0.75f;
-		nCloud.mWaterParticles = true;
-		nCloud.mMass.mMax	= 30.0f;
-		nCloud.mMass.mMin	= 10.0f;
-		nCloud.mSpawnRange.mMins[0]	= -1500.0f;
-		nCloud.mSpawnRange.mMins[1]	= -1500.0f;
-		nCloud.mSpawnRange.mMins[2]	= -1500.0f;
-		nCloud.mSpawnRange.mMaxs[0]	= 1500.0f;
-		nCloud.mSpawnRange.mMaxs[1]	= 1500.0f;
-		nCloud.mSpawnRange.mMaxs[2]	= 1500.0f;
-	}
-
-	// Create A Sand Storm
-	//---------------------
-	else if (Q_stricmp(token, "sand") == 0)
-	{
-		if (mParticleClouds.full())
-		{
-			return;
-		}
-		CWeatherParticleCloud& nCloud = mParticleClouds.push_back();
-		nCloud.Initialize(400, "gfx/effects/alpha_smoke2b.tga");
-
-		nCloud.mGravity		= 0;
- 		nCloud.mWidth		= 70;
-		nCloud.mHeight		= 70;
-		nCloud.mColor[0]	= 0.9f;
-		nCloud.mColor[1]	= 0.6f;
-		nCloud.mColor[2]	= 0.0f;
-		nCloud.mColor[3]	= 0.5f;
-		nCloud.mFade		= 5.0f;
-		nCloud.mMass.mMax	= 30.0f;
-		nCloud.mMass.mMin	= 10.0f;
-		nCloud.mSpawnRange.mMins[2]	= -150;
-		nCloud.mSpawnRange.mMaxs[2]	= 150;
-
-		nCloud.mRotationChangeNext	= 0;
-	}
-
-	// Create Blowing Clouds Of Fog
-	//------------------------------
-	else if (Q_stricmp(token, "fog") == 0)
-	{
-		if (mParticleClouds.full())
-		{
-			return;
-		}
-		CWeatherParticleCloud& nCloud = mParticleClouds.push_back();
-		nCloud.Initialize(60, "gfx/effects/alpha_smoke2b.tga");
-		nCloud.mBlendMode	= 1;
-		nCloud.mGravity		= 0;
- 		nCloud.mWidth		= 70;
-		nCloud.mHeight		= 70;
-		nCloud.mColor		= 0.2f;
-		nCloud.mFade		= 5.0f;
-		nCloud.mMass.mMax	= 30.0f;
-		nCloud.mMass.mMin	= 10.0f;
-		nCloud.mSpawnRange.mMins[2]	= -150;
-		nCloud.mSpawnRange.mMaxs[2]	= 150;
-
-		nCloud.mRotationChangeNext	= 0;
-	}
-
-	// Create Heavy Rain Particle Cloud
-	//-----------------------------------
-	else if (Q_stricmp(token, "heavyrainfog") == 0)
-	{
-		if (mParticleClouds.full())
-		{
-			return;
-		}
-		CWeatherParticleCloud& nCloud = mParticleClouds.push_back();
- 		nCloud.Initialize(70, "gfx/effects/alpha_smoke2b.tga");
-		nCloud.mBlendMode	= 1;
-		nCloud.mGravity		= 0;
- 		nCloud.mWidth		= 100;
-		nCloud.mHeight		= 100;
-		nCloud.mColor		= 0.3f;
-		nCloud.mFade		= 1.0f;
-		nCloud.mMass.mMax	= 10.0f;
-		nCloud.mMass.mMin	= 5.0f;
-
-		nCloud.mSpawnRange.mMins	= -(nCloud.mSpawnPlaneDistance*1.25f);
-		nCloud.mSpawnRange.mMaxs	=  (nCloud.mSpawnPlaneDistance*1.25f);
-		nCloud.mSpawnRange.mMins[2]	= -150;
-		nCloud.mSpawnRange.mMaxs[2]	=  150;
-
-		nCloud.mRotationChangeNext	= 0;
-	}
-
-	// Create Blowing Clouds Of Fog
-	//------------------------------
-	else if (Q_stricmp(token, "light_fog") == 0)
-	{
-		if (mParticleClouds.full())
-		{
-			return;
-		}
-		CWeatherParticleCloud& nCloud = mParticleClouds.push_back();
-		nCloud.Initialize(40, "gfx/effects/alpha_smoke2b.tga");
-		nCloud.mBlendMode	= 1;
-		nCloud.mGravity		= 0;
- 		nCloud.mWidth		= 100;
-		nCloud.mHeight		= 100;
-		nCloud.mColor[0]	= 0.19f;
-		nCloud.mColor[1]	= 0.6f;
-		nCloud.mColor[2]	= 0.7f;
-		nCloud.mColor[3]	= 0.12f;
-		nCloud.mFade		= 0.10f;
-		nCloud.mMass.mMax	= 30.0f;
-		nCloud.mMass.mMin	= 10.0f;
-		nCloud.mSpawnRange.mMins[2]	= -150;
-		nCloud.mSpawnRange.mMaxs[2]	= 150;
-
-		nCloud.mRotationChangeNext	= 0;
-	}
-
-	else if (Q_stricmp(token, "outsideshake") == 0)
-	{
-		mOutside.mOutsideShake = !mOutside.mOutsideShake;
-	}
-	else if (Q_stricmp(token, "outsidepain") == 0)
-	{
-		mOutside.mOutsidePain = !mOutside.mOutsidePain;
-	}
-	else
-	{
-		ri.Printf( PRINT_ALL, "Weather Effect: Please enter a valid command.\n" );
-		ri.Printf( PRINT_ALL, "	die\n" );
-		ri.Printf( PRINT_ALL, "	clear\n" );
-		ri.Printf( PRINT_ALL, "	freeze\n" );
-		ri.Printf( PRINT_ALL, "	zone (mins) (maxs)\n" );
-		ri.Printf( PRINT_ALL, "	wind\n" );
-		ri.Printf( PRINT_ALL, "	constantwind (velocity)\n" );
-		ri.Printf( PRINT_ALL, "	gustingwind\n" );
-		//ri.Printf( PRINT_ALL, "	windzone (mins) (maxs) (velocity)\n" );
-		ri.Printf( PRINT_ALL, "	lightrain\n" );
-		ri.Printf( PRINT_ALL, "	rain\n" );
-		ri.Printf( PRINT_ALL, "	acidrain\n" );
-		ri.Printf( PRINT_ALL, "	heavyrain\n" );
-		ri.Printf( PRINT_ALL, "	snow\n" );
-		ri.Printf( PRINT_ALL, "	spacedust\n" );
-		ri.Printf( PRINT_ALL, "	sand\n" );
-		ri.Printf( PRINT_ALL, "	fog\n" );
-		ri.Printf( PRINT_ALL, "	heavyrainfog\n" );
-		ri.Printf( PRINT_ALL, "	light_fog\n" );
-		ri.Printf( PRINT_ALL, "	outsideshake\n" );
-		ri.Printf( PRINT_ALL, "	outsidepain\n" );
-	}
-}
-
-
-
-float R_GetChanceOfSaberFizz()
-{
- 	float	chance = 0.0f;
-	int		numWater = 0;
-	for (int i=0; i<mParticleClouds.size(); i++)
-	{
-		if (mParticleClouds[i].mWaterParticles)
-		{
-			chance += (mParticleClouds[i].mGravity/20000.0f);
-			numWater ++;
-		}
-	}
-	if (numWater)
-	{
-		return (chance / numWater);
-	}
-	return 0.0f;
+	return false;
 }
 
 bool R_IsRaining()
 {
-	return !mParticleClouds.empty();
-}
-
-bool R_IsPuffing()
-{ //Eh? Don't want surfacesprites to know this?
+	if (rainSystem)
+	{
+		return rainSystem->IsRaining();
+	}
 	return false;
 }
-#endif
+
+bool R_IsSnowing()
+{
+	if (snowSystem)
+	{
+		return snowSystem->IsSnowing();
+	}
+	return false;
+}

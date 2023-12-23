@@ -1784,8 +1784,7 @@ void RB_StageIteratorGeneric( void )
 				}
 
 				// Draw the surfacesprite
-				// todo
-				//RB_DrawSurfaceSprites(tess.xstages[stage], &ssInput);
+				RB_DrawSurfaceSprites(tess.xstages[stage], &ssInput);
 			}
 		}
 	}

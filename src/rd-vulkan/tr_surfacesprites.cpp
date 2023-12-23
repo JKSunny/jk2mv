@@ -36,8 +36,6 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 // The vertigons are applied as part of the renderer backend.  That is, they access OpenGL calls directly.
 
-// todo
-#if 0
 unsigned char randomindex, randominterval;
 const float randomchart[256] = {
 	0.6554f, 0.6909f, 0.4806f, 0.6218f, 0.5717f, 0.3896f, 0.0677f, 0.7356f,
@@ -185,7 +183,11 @@ static void R_SurfaceSpriteFrameUpdate(void)
 
 	// Update the wind.
 	// If it is raining, get the windspeed from the rain system rather than the cvar
-	if (R_IsRaining() || R_IsPuffing())
+#ifdef USE_JK2
+	if ( R_IsRaining() || R_IsSnowing() )
+#else
+	if ( R_IsRaining() || R_IsPuffing() )
+#endif
 	{
 		curWeatherAmount = 1.0;
 	}
@@ -1504,4 +1506,3 @@ void RB_DrawSurfaceSprites(const shaderStage_t *stage, const ss_input *input)
 
 	sssurfaces++;
 }
-#endif
