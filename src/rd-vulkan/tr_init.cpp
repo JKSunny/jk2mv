@@ -461,14 +461,13 @@ R_TakeScreenshotPNG
 ==================
 */
 void R_TakeScreenshotPNG( int x, int y, int width, int height, char *fileName ) {
-	// todo
-	/*byte *buffer=NULL;
+	byte *buffer=NULL;
 	size_t offset=0;
 	int padlen=0;
 
 	buffer = RB_ReadPixels( x, y, width, height, &offset, &padlen, 0);
 	RE_SavePNG( fileName, buffer, width, height, 3 );
-	ri.Hunk_FreeTempMemory( buffer );*/
+	ri.Hunk_FreeTempMemory( buffer );
 }
 
 /*
@@ -477,8 +476,7 @@ R_TakeScreenshotJPEG
 ==================
 */
 void R_TakeScreenshotJPEG( int x, int y, int width, int height, char *fileName ) {
-	// todo
-	/*byte *buffer;
+	byte *buffer;
 	size_t offset = 0, memcount;
 	int padlen;
 
@@ -490,7 +488,7 @@ void R_TakeScreenshotJPEG( int x, int y, int width, int height, char *fileName )
 		R_GammaCorrect(buffer + offset, memcount);
 
 	RE_SaveJPG(fileName, r_screenshotJpegQuality->integer, width, height, buffer + offset, padlen);
-	ri.Hunk_FreeTempMemory(buffer);*/
+	ri.Hunk_FreeTempMemory(buffer);
 }
 
 /*
@@ -597,10 +595,12 @@ void R_ScreenShot_f ( void ) {
 		typeMask = SCREENSHOT_TGA;
 		ext = "tga";
 	}
+#ifndef USE_JK2
 	else if (Q_stricmp(ri.Cmd_Argv(0), "screenshot_png") == 0) {
 		typeMask = SCREENSHOT_PNG;
 		ext = "png";
 	}
+#endif
 	else {
 		typeMask = SCREENSHOT_JPG;
 		ext = "jpg";
@@ -756,7 +756,9 @@ static consoleCommand_t	commands[] = {
 	{ "skinlist",			R_SkinList_f },
 	/*{ "fontlist",			R_FontList_f },*/
 	{ "screenshot",			R_ScreenShot_f },
+#ifndef USE_JK2
 	{ "screenshot_png",		R_ScreenShot_f },
+#endif
 	{ "screenshot_tga",		R_ScreenShot_f },
 	{ "gfxinfo",			GfxInfo_f },
 	/*{ "r_we",				R_WorldEffect_f },*/
@@ -1304,9 +1306,12 @@ Q_EXPORT refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 
 	re.UpdateGLConfig = RE_UpdateGLConfig;
 	re.BeginFrame = RE_BeginFrame;
-	re.EndFrame = RE_EndFrame2;
-	re.SwapBuffers = RE_EndFrame;
-
+#ifdef USE_JK2
+	re.EndFrame								= RE_EndFrame;
+	re.SwapBuffers							= RE_SwapBuffers;
+#else
+	re.EndFrame								= RE_EndFrame; // === RE_SwapBuffers in JK2
+#endif
 	re.MarkFragments = R_MarkFragments;
 	re.LerpTag = R_LerpTag;
 	re.ModelBounds = R_ModelBounds;

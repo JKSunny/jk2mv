@@ -435,18 +435,30 @@ void RE_BeginFrame( stereoFrame_t stereoFrame,  qboolean skipBackend ) {
 	}
 }
 
+#ifdef USE_JK2
 /*
 =============
 RE_EndFrame
 
-Returns the number of msec spent in the back end
+This must be called when drawing is done after RE_BeginFrame
 =============
 */
-void RE_EndFrame2( void ) {
+void RE_EndFrame( void ) {
 	return;
 }
 
-void RE_EndFrame( int *frontEndMsec, int *backEndMsec ) {
+/*
+=============
+RE_SwapBuffers
+
+Returns the number of msec spent in the back end
+=============
+*/
+void RE_SwapBuffers( int *frontEndMsec, int *backEndMsec ) 
+#else
+void RE_EndFrame( int *frontEndMsec, int *backEndMsec ) 
+#endif
+{
 	swapBuffersCommand_t	*cmd;
 
 	if ( !tr.registered ) {

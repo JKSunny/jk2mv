@@ -2231,8 +2231,12 @@ void RE_RotatePic( float x, float y, float w, float h,
 void RE_RotatePic2( float x, float y, float w, float h,
 					  float s1, float t1, float s2, float t2,float a, qhandle_t hShader, float xadjust, float yadjust );
 void RE_BeginFrame( stereoFrame_t stereoFrame, qboolean skipBackend);
+#ifdef USE_JK2
+void RE_EndFrame( void );
+void RE_SwapBuffers( int *frontEndMsec, int *backEndMsec );
+#else
 void RE_EndFrame( int *frontEndMsec, int *backEndMsec );
-void RE_EndFrame2( void );
+#endif
 void RE_TakeVideoFrame( int width, int height, byte *captureBuffer, byte *encodeBuffer, qboolean motionJpeg );
 
 /*
@@ -2287,6 +2291,22 @@ void		WIN_Shutdown( void );
 void		R_TakeScreenshot( int x, int y, int width, int height, char *fileName );
 void		R_TakeScreenshotJPEG( int x, int y, int width, int height, char *fileName );
 void		R_TakeScreenshotPNG( int x, int y, int width, int height, char *fileName );
+
+#ifdef USE_JK2
+/*
+================================================================================
+ Image saving
+================================================================================
+*/
+// Convert raw image data to JPEG format and store in buffer.
+size_t RE_SaveJPGToBuffer( byte *buffer, size_t bufSize, int quality, int image_width, int image_height, byte *image_buffer, int padding );
+
+// Save raw image data as JPEG image file.
+void RE_SaveJPG( const char * filename, int quality, int image_width, int image_height, byte *image_buffer, int padding );
+
+// Save raw image data as PNG image file.
+int RE_SavePNG( const char *filename, byte *buf, size_t width, size_t height, int byteDepth );
+#endif
 
 // lights
 #ifdef USE_PMLIGHT
