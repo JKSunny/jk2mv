@@ -196,7 +196,11 @@ R_AddMarkFragments
 */
 static void R_AddMarkFragments( int numClipPoints, vec3_t clipPoints[2][MAX_VERTS_ON_POLY],
 				   int numPlanes, vec3_t *normals, float *dists,
+#ifdef USE_JK2
 				   int maxPoints, vec3_t *pointBuffer,
+#else
+				   int maxPoints, vec3_t pointBuffer,
+#endif
 				   int maxFragments, markFragment_t *fragmentBuffer,
 				   int *returnedPoints, int *returnedFragments,
 				   vec3_t mins, vec3_t maxs ) {
@@ -241,8 +245,11 @@ static void R_AddMarkFragments( int numClipPoints, vec3_t clipPoints[2][MAX_VERT
 	mf = fragmentBuffer + (*returnedFragments);
 	mf->firstPoint = (*returnedPoints);
 	mf->numPoints = numClipPoints;
+#ifdef USE_JK2
 	memcpy( &pointBuffer[*returnedPoints], clipPoints[pingPong], numClipPoints * sizeof(vec3_t) );
-
+#else
+	memcpy( pointBuffer + (*returnedPoints) * 3, clipPoints[pingPong], numClipPoints * sizeof(vec3_t) );
+#endif
 	(*returnedPoints) += numClipPoints;
 	(*returnedFragments)++;
 }
@@ -253,8 +260,14 @@ R_MarkFragments
 
 =================
 */
+#ifdef USE_JK2
 int R_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projection,
-				   int maxPoints, vec3_t *pointBuffer, int maxFragments, markFragment_t *fragmentBuffer ) {
+				   int maxPoints, vec3_t *pointBuffer, int maxFragments, markFragment_t *fragmentBuffer ) 
+#else
+int R_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projection,
+				   int maxPoints, vec3_t pointBuffer, int maxFragments, markFragment_t *fragmentBuffer )
+#endif
+{
 	int				numsurfaces, numPlanes;
 	int				i, j, k, m, n;
 	surfaceType_t	*surfaces[64];

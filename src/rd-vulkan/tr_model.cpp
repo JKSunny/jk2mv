@@ -22,10 +22,11 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 // tr_models.c -- model loading and caching
 
-#ifndef DEDICATED
 #include "tr_local.h"
-//#include "qcommon/disablewarnings.h"
-#include "../qcommon/sstring.h"	// #include <string>
+#ifndef USE_JK2
+#include "qcommon/disablewarnings.h"
+#endif
+#include "qcommon/sstring.h"	// #include <string>
 
 #include <vector>
 #include <map>
@@ -186,10 +187,13 @@ qboolean RE_RegisterModels_GetDiskFile( const char *psModelFileName, void **ppvB
 //
 // don't use ri->xxx functions in case running on dedicated
 //
-extern cvar_t *sv_pure;
-void *RE_RegisterModels_Malloc(int iSize, void *pvDiskBufferIfJustLoaded, const char *psModelFileName, qboolean *pqbAlreadyFound, memtag_t eTag)
+void *RE_RegisterModels_Malloc( int iSize, void *pvDiskBufferIfJustLoaded, const char *psModelFileName, qboolean *pqbAlreadyFound, memtag_t eTag )
 {
 	char sModelName[MAX_QPATH];
+
+#ifndef USE_JK2
+	assert(CachedModels);
+#endif
 
 	Q_strncpyz(sModelName,psModelFileName,sizeof(sModelName));
 	Q_strlwr  (sModelName);
@@ -200,6 +204,7 @@ void *RE_RegisterModels_Malloc(int iSize, void *pvDiskBufferIfJustLoaded, const 
 	{
 		// ... then this entry has only just been created, ie we need to load it fully...
 		//
+#ifdef USE_JK2
 		void *pMalloc = Z_Malloc(iSize,eTag, qfalse );
 
 		if (!pMalloc)	// not needed anymore, but wtf?
@@ -208,6 +213,23 @@ void *RE_RegisterModels_Malloc(int iSize, void *pvDiskBufferIfJustLoaded, const 
 		}
 
 		ModelBin.pModelDiskImage	= pMalloc;
+#else
+		// new, instead of doing a Z_Malloc and assigning that we just morph the disk buffer alloc
+		//	then don't thrown it away on return - cuts down on mem overhead
+		//
+		// ... groan, but not if doing a limb hierarchy creation (some VV stuff?), in which case it's NULL
+		//
+		if ( pvDiskBufferIfJustLoaded )
+		{
+			Z_MorphMallocTag( pvDiskBufferIfJustLoaded, eTag );
+		}
+		else
+		{
+			pvDiskBufferIfJustLoaded =  Z_Malloc(iSize,eTag, qfalse );
+		}
+
+		ModelBin.pModelDiskImage	= pvDiskBufferIfJustLoaded;
+#endif
 		ModelBin.iAllocSize			= iSize;
 
 		int iCheckSum;
@@ -220,10 +242,9 @@ void *RE_RegisterModels_Malloc(int iSize, void *pvDiskBufferIfJustLoaded, const 
 	}
 	else
 	{
-#ifndef DEDICATED
 		// if we already had this model entry, then re-register all the shaders it wanted...
 		//
-		int iEntries = (int)ModelBin.ShaderRegisterData.size();
+		int iEntries = ModelBin.ShaderRegisterData.size();
 		for (int i=0; i<iEntries; i++)
 		{
 			int iShaderNameOffset	= ModelBin.ShaderRegisterData[i].first;
@@ -241,7 +262,6 @@ void *RE_RegisterModels_Malloc(int iSize, void *pvDiskBufferIfJustLoaded, const 
 				*piShaderPokePtr = sh->index;
 			}
 		}
-#endif //!DEDICATED
 		*pqbAlreadyFound = qtrue;	// tell caller not to re-Endian or re-Shader this binary
 	}
 
@@ -252,7 +272,12 @@ void *RE_RegisterModels_Malloc(int iSize, void *pvDiskBufferIfJustLoaded, const 
 
 // Unfortunately the dedicated server also hates shader loading. So we need an alternate of this func.
 //
-void *RE_RegisterServerModels_Malloc(int iSize, const char *psModelFileName, qboolean *pqbAlreadyFound, memtag_t eTag)
+#ifdef USE_JK2
+void *RE_RegisterServerModels_Malloc( int iSize, const char *psModelFileName, qboolean *pqbAlreadyFound, memtag_t eTag )
+#else
+void *RE_RegisterServerModels_Malloc( int iSize, void *pvDiskBufferIfJustLoaded, const char *psModelFileName, qboolean *pqbAlreadyFound, memtag_t eTag )
+
+#endif
 {
 	char sModelName[MAX_QPATH];
 
@@ -263,6 +288,7 @@ void *RE_RegisterServerModels_Malloc(int iSize, const char *psModelFileName, qbo
 
 	if (ModelBin.pModelDiskImage == NULL)
 	{
+#ifdef USE_JK2
 		// ... then this entry has only just been created, ie we need to load it fully...
 		//
 		void *pMalloc = Z_Malloc(iSize,eTag, qfalse );
@@ -273,6 +299,23 @@ void *RE_RegisterServerModels_Malloc(int iSize, const char *psModelFileName, qbo
 		}
 
 		ModelBin.pModelDiskImage	= pMalloc;
+#else
+		// new, instead of doing a Z_Malloc and assigning that we just morph the disk buffer alloc
+		//	then don't thrown it away on return - cuts down on mem overhead
+		//
+		// ... groan, but not if doing a limb hierarchy creation (some VV stuff?), in which case it's NULL
+		//
+		if ( pvDiskBufferIfJustLoaded )
+		{
+			Z_MorphMallocTag( pvDiskBufferIfJustLoaded, eTag );
+		}
+		else
+		{
+			pvDiskBufferIfJustLoaded =  Z_Malloc(iSize,eTag, qfalse );
+		}
+
+		ModelBin.pModelDiskImage	= pvDiskBufferIfJustLoaded;
+#endif
 		ModelBin.iAllocSize			= iSize;
 
 		int iCheckSum;
@@ -542,7 +585,6 @@ int RE_RegisterMedia_GetLevel( void )
 
 // this is now only called by the client, so should be ok to dump media...
 //
-extern void S_RestartMusic(void);
 void RE_RegisterMedia_LevelLoadEnd( void )
 {
 	RE_RegisterModels_LevelLoadEnd(qfalse);
@@ -684,9 +726,13 @@ qboolean ServerLoadMDXA( model_t *mod, void *buffer, const char *mod_name, qbool
 	mod->dataSize  += size;
 
 	qboolean bAlreadyFound = qfalse;
+#ifdef USE_JK2
 	mdxa = mod->mdxa = (mdxaHeader_t*) //Hunk_Alloc( size );
 										RE_RegisterServerModels_Malloc(size, mod_name, &bAlreadyFound, TAG_MODEL_GLA);
-
+#else
+	mdxa = mod->mdxa = (mdxaHeader_t*) //Hunk_Alloc( size );
+										RE_RegisterServerModels_Malloc(size, buffer, mod_name, &bAlreadyFound, TAG_MODEL_GLA);
+#endif
 	assert(bAlreadyCached == bAlreadyFound);	// I should probably eliminate 'bAlreadyFound', but wtf?
 
 	if (!bAlreadyFound)
@@ -698,9 +744,13 @@ qboolean ServerLoadMDXA( model_t *mod, void *buffer, const char *mod_name, qbool
 		// Aaaargh. Kill me now...
 		//
 		bAlreadyCached = qtrue;
-		//assert( mdxa == buffer );		// todo
+
+#ifdef USE_JK2
 		memcpy( mdxa, buffer, size );
+#else		
+		assert( mdxa == buffer );
 //		memcpy( mdxa, buffer, size );	// and don't do this now, since it's the same thing
+#endif
 
 		LL(mdxa->ident);
 		LL(mdxa->version);
@@ -824,8 +874,13 @@ qboolean ServerLoadMDXM( model_t *mod, void *buffer, const char *mod_name, qbool
 	mod->dataSize += size;
 
 	qboolean bAlreadyFound = qfalse;
+#ifdef USE_JK2
 	mdxm = mod->mdxm = (mdxmHeader_t*) //Hunk_Alloc( size );
 										RE_RegisterServerModels_Malloc(size, mod_name, &bAlreadyFound, TAG_MODEL_GLM);
+#else
+	mdxm = mod->mdxm = (mdxmHeader_t*) //Hunk_Alloc( size );
+										RE_RegisterServerModels_Malloc(size, buffer, mod_name, &bAlreadyFound, TAG_MODEL_GLM);
+#endif
 
 	assert(bAlreadyCached == bAlreadyFound);	// I should probably eliminate 'bAlreadyFound', but wtf?
 
@@ -838,9 +893,13 @@ qboolean ServerLoadMDXM( model_t *mod, void *buffer, const char *mod_name, qbool
 		// Aaaargh. Kill me now...
 		//
 		bAlreadyCached = qtrue;
-		//assert( mdxm == buffer );		// todo
+
+#ifdef USE_JK2
 		memcpy( mdxm, buffer, size );
+#else
+		assert( mdxm == buffer );		// todo
 //		memcpy( mdxm, buffer, size );	// and don't do this now, since it's the same thing
+#endif
 
 		LL(mdxm->ident);
 		LL(mdxm->version);
@@ -1456,9 +1515,12 @@ static qboolean R_LoadMD3 ( model_t *mod, int lod, void *buffer, const char *mod
 		// Aaaargh. Kill me now...
 		//
 		bAlreadyCached = qtrue;
-		//assert( mod->md3[lod] == buffer );	// todo
+#ifdef USE_JK2
 		memcpy (mod->md3[lod], buffer, size );
+#else
+		assert( mod->md3[lod] == buffer );	// todo
 //		memcpy( mod->md3[lod], buffer, size );	// and don't do this now, since it's the same thing
+#endif
 
 		LL(mod->md3[lod]->ident);
 		LL(mod->md3[lod]->version);
@@ -1795,4 +1857,3 @@ void R_ModelBounds( qhandle_t handle, vec3_t mins, vec3_t maxs ) {
 	VectorCopy( frame->bounds[0], mins );
 	VectorCopy( frame->bounds[1], maxs );
 }
-#endif

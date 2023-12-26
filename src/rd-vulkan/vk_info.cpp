@@ -445,8 +445,6 @@ void vk_info_f( void ) {
     ri.Printf(PRINT_ALL, "pipeline handles: %i\n", vk.pipeline_create_count);
     ri.Printf(PRINT_ALL, "pipeline descriptors: %i, base: %i\n", vk.pipelines_count, vk.pipelines_world_base);
     ri.Printf(PRINT_ALL, "image chunks: %i\n", vk_world.num_image_chunks);
-
-    ri.Printf(PRINT_ALL, "test: %i\n", vk_world.num_image_chunks);
 #else
     ri.Printf(PRINT_ALL, "vk_info statistics are not enabled in this build.\n");
 #endif

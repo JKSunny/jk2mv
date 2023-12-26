@@ -48,7 +48,11 @@ void QDECL Com_OPrintf( const char *msg, ... )
 	ri.OPrintf("%s", text);
 }
 
+#ifdef USE_JK2
 void QDECL Com_Error( errorParm_t level, const char *error, ... )
+#else
+void QDECL Com_Error( int level, const char *error, ... )
+#endif
 {
 	va_list         argptr;
 	char            text[1024];
@@ -69,7 +73,7 @@ void Hunk_FreeTempMemory( void *buf ) {
 	ri.Hunk_FreeTempMemory( buf );
 }
 
-#ifdef HUNK_DEBUG
+#if defined(USE_JK2) && defined(HUNK_DEBUG)
 void *Hunk_AllocDebug( int size, ha_pref preference, char *label, char *file, int line ) {
 	return ri.Hunk_AllocDebug( size, preference, label, file, line );
 }
@@ -84,9 +88,15 @@ int Hunk_MemoryRemaining( void ) {
 }
 
 // ZONE
+#ifdef USE_JK2
 void *Z_Malloc( int iSize, memtag_t eTag, qboolean bZeroit ) {
 	return ri.Z_Malloc( iSize, eTag, bZeroit );
 }
+#else
+void *Z_Malloc( int iSize, memtag_t eTag, qboolean bZeroit, int iAlign ) {
+	return ri.Z_Malloc( iSize, eTag, bZeroit, iAlign );
+}
+#endif
 
 void Z_Free( void *ptr ) {
 	ri.Z_Free( ptr );

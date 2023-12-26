@@ -22,11 +22,11 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 // tr_shade_calc.c
-#ifndef DEDICATED
+
 
 #include "tr_local.h"
-//#include "../qcommon/q_shared.h"
 #include "../rd-common/tr_common.h"
+
 
 #define	WAVEVALUE( table, base, amplitude, phase, freq )  ((base) + table[ Q_ftol( ( ( (phase) + tess.shaderTime * (freq) ) * FUNCTABLE_SIZE ) ) & FUNCTABLE_MASK ] * (amplitude))
 
@@ -1457,4 +1457,3 @@ void RB_CalcRotateTexMatrix( float degsPerSecond, float *matrix )
 	matrix[0] = cosValue; matrix[2] = -sinValue; matrix[4] = 0.5 - 0.5 * cosValue + 0.5 * sinValue;
 	matrix[1] = sinValue; matrix[3] = cosValue;  matrix[5] = 0.5 - 0.5 * sinValue - 0.5 * cosValue;
 }
-#endif

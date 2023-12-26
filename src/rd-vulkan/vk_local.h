@@ -387,13 +387,15 @@ typedef float mat3x4_t[12];
 void Matrix16Identity( mat4_t out );
 void Matrix16Copy( const mat4_t in, mat4_t out );
 
-typedef union floatint_u2
+#ifndef USE_JK2 
+typedef union floatint_u
 {
 	int32_t		i;
 	uint32_t	u;
 	float		f;
 	byte		b[4];
-} floatint_t2;
+} floatint_t;
+#endif
 
 typedef enum {
 	DEPTH_RANGE_NORMAL, // [0..1]

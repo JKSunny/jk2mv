@@ -198,7 +198,12 @@ RE_SetColor
 Passing NULL will set the color to white
 =============
 */
-void RE_SetColor( const vec4_t rgba ) {
+#ifdef USE_JK2
+void	RE_SetColor( const vec4_t rgba ) 
+#else
+void	RE_SetColor( const float *rgba )
+#endif
+{
 	setColorCommand_t	*cmd;
 
 	if ( !tr.registered ) {
@@ -244,8 +249,14 @@ RE_StretchPic
 	return ortho;
 }*/
 
+#ifdef USE_JK2
 void RE_StretchPic ( float x, float y, float w, float h,
-					  float s1, float t1, float s2, float t2, qhandle_t hShader, float xadjust, float yadjust ) {
+					  float s1, float t1, float s2, float t2, qhandle_t hShader, float xadjust, float yadjust ) 
+#else
+void RE_StretchPic ( float x, float y, float w, float h,
+					  float s1, float t1, float s2, float t2, qhandle_t hShader ) {
+#endif
+{
 	stretchPicCommand_t	*cmd;
 
 	cmd = (stretchPicCommand_t *) R_GetCommandBuffer( sizeof( *cmd ) );
@@ -255,14 +266,21 @@ void RE_StretchPic ( float x, float y, float w, float h,
 
 	cmd->commandId = RC_STRETCH_PIC;
 	cmd->shader = R_GetShaderByHandle( hShader );
-	cmd->x = x * xadjust;
-	cmd->y = y * yadjust;
-	cmd->w = w * xadjust;
-	cmd->h = h * yadjust;
+	cmd->x = x;
+	cmd->y = y;
+	cmd->w = w;
+	cmd->h = h;
 	cmd->s1 = s1;
 	cmd->t1 = t1;
 	cmd->s2 = s2;
 	cmd->t2 = t2;
+
+#ifdef USE_JK2
+	cmd->x *= xadjust;
+	cmd->y *= yadjust;
+	cmd->w *= xadjust;
+	cmd->h *= yadjust;
+#endif
 }
 
 /*
@@ -270,8 +288,14 @@ void RE_StretchPic ( float x, float y, float w, float h,
 RE_RotatePic
 =============
 */
+#ifdef USE_JK2
 void RE_RotatePic ( float x, float y, float w, float h,
-					  float s1, float t1, float s2, float t2,float a, qhandle_t hShader, float xadjust, float yadjust ) {
+					  float s1, float t1, float s2, float t2,float a, qhandle_t hShader, float xadjust, float yadjust ) 
+#else
+void RE_RotatePic ( float x, float y, float w, float h,
+					  float s1, float t1, float s2, float t2,float a, qhandle_t hShader ) {
+#endif
+{
 	rotatePicCommand_t	*cmd;
 
 	cmd = (rotatePicCommand_t *) R_GetCommandBuffer( sizeof( *cmd ) );
@@ -281,15 +305,22 @@ void RE_RotatePic ( float x, float y, float w, float h,
 
 	cmd->commandId = RC_ROTATE_PIC;
 	cmd->shader = R_GetShaderByHandle( hShader );
-	cmd->x = x * xadjust;
-	cmd->y = y * yadjust;
-	cmd->w = w * xadjust;
-	cmd->h = h * yadjust;
+	cmd->x = x;
+	cmd->y = y;
+	cmd->w = w;
+	cmd->h = h;
 	cmd->s1 = s1;
 	cmd->t1 = t1;
 	cmd->s2 = s2;
 	cmd->t2 = t2;
 	cmd->a = a;
+
+#ifdef USE_JK2
+	cmd->x *= xadjust;
+	cmd->y *= yadjust;
+	cmd->w *= xadjust;
+	cmd->h *= yadjust;
+#endif
 }
 
 /*
@@ -297,8 +328,14 @@ void RE_RotatePic ( float x, float y, float w, float h,
 RE_RotatePic2
 =============
 */
+#ifdef USE_JK2
 void RE_RotatePic2 ( float x, float y, float w, float h,
-					  float s1, float t1, float s2, float t2,float a, qhandle_t hShader, float xadjust, float yadjust ) {
+					  float s1, float t1, float s2, float t2,float a, qhandle_t hShader, float xadjust, float yadjust )
+#else
+void RE_RotatePic2 ( float x, float y, float w, float h,
+					  float s1, float t1, float s2, float t2,float a, qhandle_t hShader ) {
+#endif
+{
 	rotatePicCommand_t	*cmd;
 
 	cmd = (rotatePicCommand_t *) R_GetCommandBuffer( sizeof( *cmd ) );
@@ -308,15 +345,22 @@ void RE_RotatePic2 ( float x, float y, float w, float h,
 
 	cmd->commandId = RC_ROTATE_PIC2;
 	cmd->shader = R_GetShaderByHandle( hShader );
-	cmd->x = x * xadjust;
-	cmd->y = y * yadjust;
-	cmd->w = w * xadjust;
-	cmd->h = h * yadjust;
+	cmd->x = x;
+	cmd->y = y;
+	cmd->w = w;
+	cmd->h = h;
 	cmd->s1 = s1;
 	cmd->t1 = t1;
 	cmd->s2 = s2;
 	cmd->t2 = t2;
 	cmd->a = a;
+
+#ifdef USE_JK2
+	cmd->x *= xadjust;
+	cmd->y *= yadjust;
+	cmd->w *= xadjust;
+	cmd->h *= yadjust;
+#endif
 }
 
 void RE_RenderWorldEffects( void )
@@ -350,15 +394,20 @@ If running in stereo, RE_BeginFrame will be called twice
 for each RE_EndFrame
 ====================
 */
-void RE_BeginFrame( stereoFrame_t stereoFrame,  qboolean skipBackend ) {
+#ifdef USE_JK2
+void RE_BeginFrame( stereoFrame_t stereoFrame, qboolean skipBackend ) {
+#else
+void RE_BeginFrame( stereoFrame_t stereoFrame ) {
+#endif
 	drawBufferCommand_t	*cmd;
 
 	if ( !tr.registered ) {
 		return;
 	}
 	
-	// todo
-	//ResetGhoul2RenderableSurfaceHeap();
+#ifndef USE_JK2 // todo
+	ResetGhoul2RenderableSurfaceHeap();
+#endif
 
 	backEnd.doneBloom = qfalse;
 

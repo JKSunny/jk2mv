@@ -22,10 +22,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 // tr_image.c
-#ifndef DEDICATED
+
 #include "tr_local.h"
-//#include "../qcommon/q_shared.h"
 #include "../rd-common/tr_common.h"
+
 #include <map>
 
 /*
@@ -529,4 +529,3 @@ float	R_FogFactor( float s, float t ) {
 
 	return d;
 }
-#endif

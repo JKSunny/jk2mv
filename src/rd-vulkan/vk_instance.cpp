@@ -25,7 +25,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <stdlib.h>
 
 #include "tr_local.h"
-#include "../rd-common/tr_public.h"
+#include "rd-common/tr_public.h"
 
 unsigned char s_intensitytable[256];
 unsigned char s_gammatable[256];
@@ -762,7 +762,13 @@ __initStart:
 #endif
 
 	// create surface
-	if (!ri.VK_createSurfaceImpl(vk.instance, (void**)&vk.surface)) {
+#if defined(USE_JK2) || defined(USE_OPENJK)	// should backport (void**) to EJK
+	if (!ri.VK_createSurfaceImpl(vk.instance, (void**)&vk.surface)) 
+#else
+	if (!ri.VK_createSurfaceImpl(vk.instance, &vk.surface)) 
+#endif
+	
+	{
 		ri.Error(ERR_FATAL, "Error creating Vulkan surface");
 		return;
 	}
@@ -785,11 +791,7 @@ __initStart:
 			vk_deinit_library();
 
 			// Disable the AMD layer and try again.
-#ifdef UNICODE	// todo
-			//SetEnvironmentVariable("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1");
-#else
 			SetEnvironmentVariable("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1");
-#endif
 			deviceCountRetried = qtrue;
 			goto __initStart;
 		}

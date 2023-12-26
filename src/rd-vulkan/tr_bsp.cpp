@@ -22,7 +22,6 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 // tr_map.c
 
-#ifndef DEDICATED
 #include "tr_local.h"
 
 static const imgFlags_t lightmapFlags = IMGFLAG_NOLIGHTSCALE | IMGFLAG_NO_COMPRESSION | IMGFLAG_LIGHTMAP | IMGFLAG_NOSCALE;
@@ -220,14 +219,17 @@ static void R_LoadLightmaps( lump_t *l, lump_t *surfs, world_t &worldData ) {
 		tr.numLightmaps = numLightmaps;
 	}
 
+#ifdef USE_JK2
 	// interesting ..
 	// Hunk_AllocDebug differs from Hunk_Alloc
 	// Hunk_AllocDebug marks ** as valid, meaning [-1] is not NULL.
 	// 
 	// "tr.lightmaps[lightmapIndex[i]] == NULL" in "R_FindLightmap" returns false on Debug
 	// but true on Release ..
-	//tr.lightmaps = (image_t **)Hunk_Alloc( tr.numLightmaps * sizeof(image_t *), h_low );
 	tr.lightmaps = (image_t **)Z_Malloc( tr.numLightmaps * sizeof(image_t *), TAG_BSP, qtrue );
+#else
+	tr.lightmaps = (image_t **)ri.Hunk_Alloc( tr.numLightmaps * sizeof(image_t *), h_low );
+#endif
 
 	textureInternalFormat = GL_RGBA8;
 
@@ -2406,4 +2408,3 @@ void RE_LoadWorldMap( const char *name )
 
 	ri.CM_SetUsingCache( qfalse );
 }
-#endif

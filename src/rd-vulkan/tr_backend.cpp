@@ -1002,8 +1002,9 @@ const void	*RB_SwapBuffers( const void *data ) {			// rb_endframe right?
 	// finish any 2D drawing if needed
 	RB_EndSurface();
 
-	// todo
-	//ResetGhoul2RenderableSurfaceHeap();
+#ifndef USE_JK2 // todo
+	ResetGhoul2RenderableSurfaceHeap();
+#endif
 
 	// texture swapping test
 	if ( r_showImages->integer ) {

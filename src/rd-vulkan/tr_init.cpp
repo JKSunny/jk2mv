@@ -23,15 +23,13 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 // tr_init.c -- functions that are not called every frame
 
-#ifndef DEDICATED
 #include "tr_local.h"
 
 #include <algorithm>
-//#include "../qcommon/q_shared.h"
 #include "../rd-common/tr_common.h"
 #include "tr_WorldEffects.h"
-#include "../qcommon/MiniHeap.h"
-#include "../ghoul2/g2_local.h"
+#include "qcommon/MiniHeap.h"
+#include "ghoul2/g2_local.h"
 
 glconfig_t	glConfig;
 glconfigExt_t glConfigExt;
@@ -235,9 +233,6 @@ Ghoul2 Insert Start
 cvar_t	*r_noPrecacheGLA;
 #endif
 
-cvar_t *r_convertModelBones;
-cvar_t *r_loadSkinsJKA;
-
 cvar_t	*r_noServerGhoul2;
 cvar_t	*r_Ghoul2AnimSmooth=0;
 cvar_t	*r_Ghoul2UnSqashAfterSmooth=0;
@@ -265,6 +260,9 @@ cvar_t	*broadsword_dircap=0;
 Ghoul2 Insert End
 */
 #ifdef USE_JK2
+cvar_t *r_convertModelBones;
+cvar_t *r_loadSkinsJKA;
+
 cvar_t *r_consoleFont;
 cvar_t *r_fontSharpness;
 cvar_t *r_newRemaps;
@@ -384,7 +382,7 @@ byte *RB_ReadPixels( int x, int y, int width, int height, size_t *offset, int *p
 
 	// Allocate a few more bytes so that we can choose an alignment we like
 	//buffer = ri.Hunk_AllocateTempMemory(padwidth * height + *offset + bufAlign - 1);
-	buffer = (byte*)ri.Hunk_AllocateTempMemory(width * height * 4 + *offset + bufAlign - 1);
+	buffer = (byte*)Hunk_AllocateTempMemory(width * height * 4 + *offset + bufAlign - 1);
 	bufstart = (byte*)PADP((intptr_t)buffer + *offset, bufAlign);
 
 	vk_read_pixels(bufstart, width, height);
@@ -653,14 +651,14 @@ const void *RB_TakeVideoFrameCmd( const void *data )
 	// todo
 	const videoFrameCommand_t *cmd;
 	
-	/*byte		*cBuf;
+	byte		*cBuf;
 	size_t		memcount, linelen;
 	int			padwidth, avipadwidth, padlen, avipadlen;
-	int			packAlign;*/
+	int			packAlign;
 
 	cmd = (const videoFrameCommand_t*)data;
 
-	/*packAlign = 1;
+	packAlign = 1;
 
 	linelen = cmd->width * 3;
 
@@ -717,7 +715,7 @@ const void *RB_TakeVideoFrameCmd( const void *data )
 
 		ri.CL_WriteAVIVideoFrame(cmd->encodeBuffer, avipadwidth * cmd->height);
 	}
-	*/
+	
 	return (const void*)(cmd + 1);
 }
 
@@ -976,9 +974,6 @@ void R_Register( void )
 /*
 Ghoul2 Insert Start
 */
-	r_convertModelBones = ri.Cvar_Get( "r_convertModelBones", "1", CVAR_ARCHIVE | CVAR_GLOBAL );
-	r_loadSkinsJKA = ri.Cvar_Get( "r_loadSkinsJKA", "1", CVAR_ARCHIVE | CVAR_GLOBAL );
-
 #ifdef _DEBUG
 	r_noPrecacheGLA						= ri.Cvar_Get( "r_noPrecacheGLA",					"0",						CVAR_CHEAT );
 #endif
@@ -1002,6 +997,9 @@ Ghoul2 Insert End
 */
 
 #ifdef USE_JK2
+	r_convertModelBones = ri.Cvar_Get( "r_convertModelBones", "1", CVAR_ARCHIVE | CVAR_GLOBAL );
+	r_loadSkinsJKA = ri.Cvar_Get( "r_loadSkinsJKA", "1", CVAR_ARCHIVE | CVAR_GLOBAL );
+
 	r_consoleFont						= ri.Cvar_Get( "r_consoleFont",						"1",						CVAR_ARCHIVE | CVAR_GLOBAL );
 	r_consoleFont->modified = qtrue;
 	r_fontSharpness						= ri.Cvar_Get( "r_fontSharpness",					"1",						CVAR_ARCHIVE | CVAR_GLOBAL );
@@ -1034,7 +1032,9 @@ Ghoul2 Insert End
 R_Init
 ===============
 */
-//extern void R_InitWorldEffects( void ); //tr_WorldEffects.cpp // todo
+#ifndef USE_JK2	// todo
+extern void R_InitWorldEffects( void ); //tr_WorldEffects.cpp
+#endif
 void R_Init( void ) {
 	int i;
 	byte *ptr;
@@ -1124,9 +1124,10 @@ void R_Init( void ) {
 	R_InitFonts();
 	R_ModelInit();
 	R_InitDecals();
-	//R_InitWorldEffects(); // todo
-	//RestoreGhoul2InfoArray();	// todo
-
+#ifndef USE_JK2	// todo
+	R_InitWorldEffects();
+	RestoreGhoul2InfoArray();
+#endif
 	vk_debug("----- finished R_Init -----\n" );
 }
 
@@ -1137,13 +1138,19 @@ void R_Init( void ) {
 RE_Shutdown
 ===============
 */
-void RE_Shutdown( qboolean destroyWindow/*, qboolean restarting*/ ) {	// todo
+#ifdef USE_JK2
+void RE_Shutdown( qboolean destroyWindow/*, qboolean restarting*/ ) {
 	vk_debug("RE_Shutdown( %i, %i )\n", destroyWindow/*, restarting*/);
-
+#else
+void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
+	vk_debug("RE_Shutdown( %i, %i )\n", destroyWindow, restarting);
+#endif
 	for (size_t i = 0; i < numCommands; i++)
 		ri.Cmd_RemoveCommand(commands[i].cmd);
 
-	//R_ShutdownWorldEffects();
+#ifndef USE_JK2	// todo
+	R_ShutdownWorldEffects();
+#endif
 	R_ShutdownFonts();
 
 	// contains vulkan resources/state, reinitialized on a map change.
@@ -1152,9 +1159,10 @@ void RE_Shutdown( qboolean destroyWindow/*, qboolean restarting*/ ) {	// todo
 		if (destroyWindow){
 			vk_delete_textures();
 
-			// todo
+#ifndef USE_JK2	// todo
 			//if (restarting)
 				//SaveGhoul2InfoArray();
+#endif
 		}
 
 		vk_release_resources();
@@ -1217,6 +1225,7 @@ void RE_SetLightStyle( int style, int color )
 	}
 }
 
+#ifdef USE_JK2
 void RE_UpdateGLConfig( glconfig_t *glconfigOut ) {
 	int		oldWidth = glConfig.vidWidth;
 	int		oldHeight = glConfig.vidHeight;
@@ -1235,17 +1244,17 @@ void RE_UpdateGLConfig( glconfig_t *glconfigOut ) {
 	glconfigOut->displayScale = glConfig.displayScale;
 }
 
+extern bool RicksCrazyOnServer;
+static void G2API_RicksCrazyOnServer( bool value ) { RicksCrazyOnServer = value; } // lol
+extern void R_SVModelInit( void ); //tr_model.cpp
+#endif
+
 static void SetRangedFog( float range ) { tr.rangedFog = range; }
 
 extern qboolean gG2_GBMNoReconstruct;
 extern qboolean gG2_GBMUseSPMethod;
 static void G2API_BoltMatrixReconstruction( qboolean reconstruct ) { gG2_GBMNoReconstruct = (qboolean)!reconstruct; }
 static void G2API_BoltMatrixSPMethod( qboolean spMethod ) { gG2_GBMUseSPMethod = spMethod; }
-
-extern bool RicksCrazyOnServer;
-static void G2API_RicksCrazyOnServer( bool value ) { RicksCrazyOnServer = value; } // lol
-
-extern void R_SVModelInit( void ); //tr_model.cpp
 
 //extern float tr_distortionAlpha; //opaque
 //extern float tr_distortionStretch; //no stretch override
@@ -1269,8 +1278,9 @@ static void GetRealRes( int *w, int *h ) {
 extern void R_AutomapElevationAdjustment( float newHeight ); //tr_world.cpp
 extern qboolean R_InitializeWireframeAutomap( void ); //tr_world.cpp
 
-//extern qhandle_t RE_RegisterServerSkin( const char *name );
-
+#ifndef USE_JK2
+extern qhandle_t RE_RegisterServerSkin( const char *name );
+#endif
 /*
 @@@@@@@@@@@@@@@@@@@@@
 GetRefAPI
@@ -1304,11 +1314,12 @@ Q_EXPORT refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 	re.SetWorldVisData = RE_SetWorldVisData;
 	re.EndRegistration = RE_EndRegistration;
 
-	re.UpdateGLConfig = RE_UpdateGLConfig;
+	
 	re.BeginFrame = RE_BeginFrame;
 #ifdef USE_JK2
 	re.EndFrame								= RE_EndFrame;
 	re.SwapBuffers							= RE_SwapBuffers;
+	re.UpdateGLConfig						= RE_UpdateGLConfig;
 #else
 	re.EndFrame								= RE_EndFrame; // === RE_SwapBuffers in JK2
 #endif
@@ -1469,4 +1480,3 @@ Q_EXPORT refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 	return &re;
 }
 }
-#endif

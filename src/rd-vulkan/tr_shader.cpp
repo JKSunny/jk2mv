@@ -20,7 +20,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
 
-#ifndef DEDICATED
 #include "tr_local.h"
 
 // tr_shader.c -- this file deals with the parsing and definition of shaders
@@ -43,7 +42,9 @@ static	texModInfo_t	texMods[MAX_SHADER_STAGES][TR_MAX_TEXMODS];
 
 #define FILE_HASH_SIZE		1024
 static	shader_t* hashTable[FILE_HASH_SIZE];
+#ifdef USE_JK2
 static	shader_t*		advancedRemapShadersHashTable[FILE_HASH_SIZE];
+#endif
 
 #define MAX_SHADERTEXT_HASH		2048
 static const char **shaderTextHashTable[MAX_SHADERTEXT_HASH] = { 0 };
@@ -362,8 +363,9 @@ infoParm_t	infoParms[] = {
 	{ "ladder",			~(CONTENTS_SOLID | CONTENTS_OPAQUE),	SURF_NONE,			CONTENTS_LADDER },		// climb up in it like water
 	{ "abseil",			~(CONTENTS_SOLID | CONTENTS_OPAQUE),	SURF_NONE,			CONTENTS_ABSEIL },		// can abseil down this brush
 	{ "outside",		~(CONTENTS_SOLID | CONTENTS_OPAQUE),	SURF_NONE,			CONTENTS_OUTSIDE },		// volume is considered to be in the outside (i.e. not indoors)
-	/*{ "inside",			~(CONTENTS_SOLID | CONTENTS_OPAQUE),	SURF_NONE,			CONTENTS_INSIDE },*/// volume is considered to be inside (i.e. indoors)
-
+#ifndef USE_JK2
+	{ "inside",			~(CONTENTS_SOLID | CONTENTS_OPAQUE),	SURF_NONE,			CONTENTS_INSIDE },		// volume is considered to be inside (i.e. indoors)
+#endif
 	{ "detail",			CONTENTS_ALL,							SURF_NONE,			CONTENTS_DETAIL },		// don't include in structural bsp
 	{ "trans",			CONTENTS_ALL,							SURF_NONE,			CONTENTS_TRANSLUCENT },	// surface has an alpha component
 
@@ -380,7 +382,9 @@ infoParm_t	infoParms[] = {
 	{ "metalsteps",		CONTENTS_ALL,							SURF_METALSTEPS,	CONTENTS_NONE },		//
 	{ "nomiscents",		CONTENTS_ALL,							SURF_NOMISCENTS,	CONTENTS_NONE },		// No misc ents on this surface
 	{ "forcefield",		CONTENTS_ALL,							SURF_FORCEFIELD,	CONTENTS_NONE },		//
-	/*{ "forcesight",		CONTENTS_ALL,							SURF_FORCESIGHT,	CONTENTS_NONE },*/	// only visible with force sight
+#ifndef USE_JK2	
+	{ "forcesight",		CONTENTS_ALL,							SURF_FORCESIGHT,	CONTENTS_NONE },		// only visible with force sight
+#endif
 };
 
 /*
@@ -2256,8 +2260,11 @@ static const char *FindShaderInShaderText( const char *shadername ) {
 		}
 		else {
 			// skip the definition
-			//SkipBracedSection(&p, 0); // todo
+#ifdef USE_JK2
 			SkipBracedSection(&p);
+#else
+			SkipBracedSection(&p, 0);
+#endif
 		}
 	}
 #endif
@@ -3038,7 +3045,8 @@ a single large text block that can be scanned for shader names
 =====================
 */
 #define	MAX_SHADER_FILES	4096
-static void ScanAndLoadShaderFiles( const char *path )
+static void ScanAndLoadShaderFiles( void )
+#ifdef USE_JK2	// dont fancy this guarded block much
 {
 const char **shaderFiles[3];
 	char *buffers[MAX_SHADER_FILES];
@@ -3053,9 +3061,9 @@ const char **shaderFiles[3];
 	int sum;
 
 	// scan for shader files
-	shaderFiles[0] = ri.FS_ListFiles( path, ".shader_mv", &numShaderFilesType[0] );
-	shaderFiles[1] = ri.FS_ListFiles( path, ".shader", &numShaderFilesType[1] );
-	shaderFiles[2] = ri.FS_ListFiles( path, ".shader_jka", &numShaderFilesType[2] );
+	shaderFiles[0] = ri.FS_ListFiles( "shaders", ".shader_mv", &numShaderFilesType[0]);
+	shaderFiles[1] = ri.FS_ListFiles( "shaders", ".shader", &numShaderFilesType[1] );
+	shaderFiles[2] = ri.FS_ListFiles( "shaders", ".shader_jka", &numShaderFilesType[2] );
 
 	if ( !shaderFiles[0] )
 	{
@@ -3091,7 +3099,7 @@ const char **shaderFiles[3];
 		{
 			char filename[MAX_QPATH];
 
-			Com_sprintf( filename, sizeof( filename ), "%s/%s", path, shaderFiles[type][i] );
+			Com_sprintf( filename, sizeof( filename ), "shaders/%s", shaderFiles[type][i] );
 			ri.Printf( PRINT_ALL, "...loading '%s'\n", filename );
 			ri.FS_ReadFile( filename, (void **)&buffers[j] );
 			if ( !buffers[j] ) {
@@ -3160,6 +3168,177 @@ const char **shaderFiles[3];
 		SkipBracedSection(&p);
 	}
 }
+#else
+{
+	char		**shaderFiles;
+	char		*buffers[MAX_SHADER_FILES];
+	const char	*p;
+	int			numShaderFiles;
+	int			i;
+	const char	*token, *hashMem;
+	char		*oldp, *textEnd;
+	int			shaderTextHashTableSizes[MAX_SHADERTEXT_HASH], hash, size;
+	char		shaderName[MAX_QPATH];
+	int			shaderLine;
+	long		sum = 0, summand;
+
+	// scan for shader files
+	shaderFiles = ri.FS_ListFiles("shaders", ".shader", &numShaderFiles);
+
+	if (!shaderFiles || !numShaderFiles)
+	{
+		ri.Error(ERR_FATAL, "ERROR: no shader files found");
+		return;
+	}
+
+	if (numShaderFiles > MAX_SHADER_FILES) {
+		numShaderFiles = MAX_SHADER_FILES;
+	}
+
+	// load and parse shader files
+	for (i = 0; i < numShaderFiles; i++)
+	{
+		char filename[MAX_QPATH];
+
+		Com_sprintf(filename, sizeof(filename), "shaders/%s", shaderFiles[i]);
+		vk_debug("...loading '%s'\n", filename);
+		summand = ri.FS_ReadFile(filename, (void**)&buffers[i]);
+
+		if (!buffers[i]) {
+			vk_debug("Couldn't load %s", filename);
+		}
+
+		// Do a simple check on the shader structure in that file to make sure one bad shader file cannot fuck up all other shaders.
+		p = buffers[i];
+		COM_BeginParseSession(filename);
+		while (1)
+		{
+			token = COM_ParseExt(&p, qtrue);
+
+			if (!*token)
+				break;
+
+			Q_strncpyz(shaderName, token, sizeof(shaderName));
+			shaderLine = COM_GetCurrentParseLine();
+
+			if (token[0] == '#')
+			{
+				vk_debug("WARNING: Deprecated shader comment \"%s\" on line %d in file %s.  Ignoring line.\n",
+					shaderName, shaderLine, filename);
+				SkipRestOfLine(&p);
+				continue;
+			}
+
+			token = COM_ParseExt(&p, qtrue);
+			if (token[0] != '{' || token[1] != '\0')
+			{
+				vk_debug("WARNING: Ignoring shader file %s. Shader \"%s\" on line %d missing opening brace",
+					filename, shaderName, shaderLine);
+				if (token[0])
+				{
+					vk_debug(" (found \"%s\" on line %d)", token, COM_GetCurrentParseLine());
+				}
+				vk_debug(".\n");
+				ri.FS_FreeFile(buffers[i]);
+				buffers[i] = NULL;
+				break;
+			}
+
+			if (!SkipBracedSection(&p, 1))
+			{
+				vk_debug("WARNING: Ignoring shader file %s. Shader \"%s\" on line %d missing closing brace.\n",
+					filename, shaderName, shaderLine);
+				ri.FS_FreeFile(buffers[i]);
+				buffers[i] = NULL;
+				break;
+			}
+		}
+
+
+		if (buffers[i])
+			sum += summand;
+	}
+
+	// build single large buffer
+	s_shaderText = (char*)ri.Hunk_Alloc(sum + numShaderFiles * 2, h_low);
+	s_shaderText[0] = '\0';
+	textEnd = s_shaderText;
+
+	// free in reverse order, so the temp files are all dumped
+	for (i = numShaderFiles - 1; i >= 0; i--)
+	{
+		if (!buffers[i])
+			continue;
+
+		strcat(textEnd, buffers[i]);
+		strcat(textEnd, "\n");
+		textEnd += strlen(textEnd);
+		ri.FS_FreeFile(buffers[i]);
+	}
+
+	COM_CompressShader(s_shaderText);
+
+	// free up memory
+	ri.FS_FreeFileList(shaderFiles);
+
+	memset(shaderTextHashTableSizes, 0, sizeof(shaderTextHashTableSizes));
+	size = 0;
+
+	p = s_shaderText;
+	// look for shader names
+	while (1) {
+		token = COM_ParseExt(&p, qtrue);
+		if (token[0] == 0) {
+			break;
+		}
+
+		if (token[0] == '#')
+		{
+			SkipRestOfLine(&p);
+			continue;
+		}
+
+		hash = generateHashValue(token, MAX_SHADERTEXT_HASH);
+		shaderTextHashTableSizes[hash]++;
+		size++;
+		SkipBracedSection(&p, 0);
+	}
+
+	size += MAX_SHADERTEXT_HASH;
+
+	hashMem = (char*)ri.Hunk_Alloc(size * sizeof(char*), h_low);
+
+	for (i = 0; i < MAX_SHADERTEXT_HASH; i++) {
+		shaderTextHashTable[i] = (const char**)hashMem;
+		hashMem = ((char*)hashMem) + ((shaderTextHashTableSizes[i] + 1) * sizeof(char*));
+	}
+
+	memset(shaderTextHashTableSizes, 0, sizeof(shaderTextHashTableSizes));
+
+	p = s_shaderText;
+	// look for shader names
+	while (1) {
+		oldp = (char*)p;
+		token = COM_ParseExt(&p, qtrue);
+		if (token[0] == 0) {
+			break;
+		}
+
+		if (token[0] == '#')
+		{
+			SkipRestOfLine(&p);
+			continue;
+		}
+
+		hash = generateHashValue(token, MAX_SHADERTEXT_HASH);
+		shaderTextHashTable[hash][shaderTextHashTableSizes[hash]++] = oldp;
+
+		SkipBracedSection(&p, 0);
+	}
+
+	return;
+}
+#endif
 
 /*
 ===============
@@ -3315,8 +3494,11 @@ shader_t *R_FindShader( const char *name, const int *lightmapIndex, const byte *
 		if (!image) {
 			vk_debug("shader [%s] image not found, fallback to default shader\n", name);
 			setDefaultShader();
-			//return FinishShader();
+#ifdef USE_JK2
 			image = tr.defaultImage;
+#else
+			return FinishShader();
+#endif
 		}
 	}
 
@@ -5059,9 +5241,8 @@ void R_InitShaders( qboolean server )
 	{
 		CreateInternalShaders();
 
-		ScanAndLoadShaderFiles( "shaders" );
+		ScanAndLoadShaderFiles();
 
 		CreateExternalShaders();
 	}
 }
-#endif

@@ -682,6 +682,7 @@ static void BuildSkyTexCoords( void )
 ** R_InitSkyTexCoords
 ** Called when a sky shader is parsed
 */
+#ifdef USE_JK2
 float Q_acos2(float c) {
 	float angle;
 
@@ -695,6 +696,7 @@ float Q_acos2(float c) {
 	}
 	return angle;
 }
+#endif
 
 void R_InitSkyTexCoords( float heightCloud )
 {
@@ -747,8 +749,13 @@ void R_InitSkyTexCoords( float heightCloud )
 				// compute vector from world origin to intersection point 'v'
 				VectorNormalize(v);
 
-				sRad = Q_acos2(v[0]);	// todo lol
-				tRad = Q_acos2(v[1]);	// todo lol
+#ifdef USE_JK2 // right ..
+				sRad = Q_acos2(v[0]);
+				tRad = Q_acos2(v[1]);
+#else
+				sRad = Q_acos(v[0]);
+				tRad = Q_acos(v[1]);
+#endif
 
 				s_cloudTexCoords[i][t][s][0] = sRad;
 				s_cloudTexCoords[i][t][s][1] = tRad;

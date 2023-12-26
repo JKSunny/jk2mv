@@ -20,7 +20,7 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, see <http://www.gnu.org/licenses/>.
 ===========================================================================
 */
-#ifndef DEDICATED
+
 #ifndef TR_LOCAL_H
 #define TR_LOCAL_H
 
@@ -47,9 +47,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define MAX_TEXTURE_SIZE		2048 // must be less or equal to 32768
 #define MAX_TEXTURE_UNITS		8
 
-#include "../qcommon/qfiles.h"
-#include "../rd-common/tr_public.h"
-#include "../rd-common/tr_common.h"
+#include "qcommon/qfiles.h"
+#include "rd-common/tr_public.h"
+#include "rd-common/tr_common.h"
+#include "ghoul2/ghoul2_shared.h" //rwwRMG - added
 
 #if defined(_WIN32)
 #	include <windows.h>
@@ -129,6 +130,11 @@ typedef unsigned int glIndex_t;
 #define MAX_STATES_PER_SHADER 32
 #define MAX_STATE_NAME 32
 
+#ifdef USE_JK2
+//
+// in Jedi Academy this lives in "qcommon/qcommon.h"
+//
+#define AVI_LINE_PADDING 4	// AVI files have the start of pixel lines 4 byte-aligned
 
 //
 // in Jedi Academy this lives in "rd-common/tr_types.h"
@@ -139,6 +145,19 @@ typedef unsigned int glIndex_t;
 //  and this is reflected by the value of MAX_REFENTITIES (which therefore is not a power-of-2)
 #define	MAX_REFENTITIES		((1<<REFENTITYNUM_BITS) - 1)
 #define	REFENTITYNUM_WORLD	((1<<REFENTITYNUM_BITS) - 1)
+
+extern int	skyboxportal;
+extern int	drawskyboxportal;
+
+#define MDXABONEDEF
+#include "../renderer/mdx_format.h"
+
+//
+// in Jedi Academy this lives in "rd-common/tr_common.h"
+//
+extern	refimport_t		ri;
+
+#endif
 
 typedef enum
 {
@@ -630,8 +649,6 @@ typedef struct shader_s {
 	qboolean	fogCollapse;
 	int			tessFlags;
 	
-	struct shader_s *remappedShader;                  // current shader this one is remapped too
-
 #ifdef USE_JK2_SHADER_REMAP
 	qboolean		isAdvancedRemap;
 	struct shader_s *remappedShaderAdvanced;          // current shader from the advanced remaps this one is remapped to
@@ -641,6 +658,7 @@ typedef struct shader_s {
 	shaderStage_t	*stages[MAX_SHADER_STAGES];
 	deformStage_t	*deforms[MAX_SHADER_DEFORMS];
 
+#ifdef USE_JK2
 /*
 Ghoul2 Insert Start
 */
@@ -649,6 +667,7 @@ Ghoul2 Insert Start
 /*
 Ghoul2 Insert End
 */
+#endif
 
 	short		numDeforms;
 	short		numUnfoggedPasses;
@@ -682,6 +701,7 @@ Ghoul2 Insert End
 	int			curIndexes;
 #endif
 
+	struct shader_s		*remappedShader;			// current shader this one is remapped too
 	struct	shader_s	*next;
 } shader_t;
 
@@ -689,7 +709,7 @@ Ghoul2 Insert End
 Ghoul2 Insert Start
 */
  // bogus little registration system for hit and location based damage files in hunk memory
-typedef struct {
+typedef struct hitMatReg_s {
 	byte	*loc;
 	int		width;
 	int		height;
@@ -700,8 +720,6 @@ typedef struct {
 
 extern hitMatReg_t		hitMatReg[MAX_HITMAT_ENTRIES];
 
-extern int	skyboxportal;
-extern int	drawskyboxportal;
 /*
 Ghoul2 Insert End
 */
@@ -758,7 +776,10 @@ typedef struct skinSurface_s {
 	shader_t	*shader;
 } skinSurface_t;
 
-// hmmm
+#ifdef USE_JK2
+//
+// in Jedi Academy this lives in "rd-common/tr_types.h"
+//
 typedef struct _skinSurface_s {
 	char		name[MAX_QPATH];
 	void	*shader;
@@ -769,6 +790,7 @@ typedef struct skin_s {
 	int			numSurfaces;
 	skinSurface_t	*surfaces[/*MD3_MAX_SURFACES*/256];
 } skin_t;
+#endif
 
 typedef struct fog_s {
 	int				originalBrushNumber;
@@ -1087,9 +1109,6 @@ typedef struct world_s {
 
 //======================================================================
 
-#define MDXABONEDEF
-#include "../renderer/mdx_format.h"
-
 typedef enum {
 	MOD_BAD,
 	MOD_BRUSH,
@@ -1138,7 +1157,7 @@ void		R_ModelBounds( qhandle_t handle, vec3_t mins, vec3_t maxs );
 void		R_Modellist_f ( void );
 
 //====================================================
-extern	refimport_t		ri;
+
 
 #define	MAX_DRAWIMAGES			4096
 #define	MAX_LIGHTMAPS			256
@@ -1348,7 +1367,7 @@ typedef struct drawSurfsCommand_s drawSurfsCommand_t;
 
 #define NUM_SCRATCH_IMAGES 32
 
-typedef struct {
+typedef struct trGlobals_s {
 	qboolean				registered;			// cleared at shutdown, set at beginRegistration
 	qboolean				inited;				// cleared at shutdown, set at vk_create_window
 
@@ -1704,15 +1723,15 @@ Ghoul2 Insert Start
 extern	cvar_t	*r_noPrecacheGLA;
 #endif
 
-extern	cvar_t	*r_convertModelBones;
-extern	cvar_t	*r_loadSkinsJKA;
-
 extern	cvar_t	*r_noServerGhoul2;
 /*
 Ghoul2 Insert End
 */
 
 #ifdef USE_JK2
+extern	cvar_t	*r_convertModelBones;
+extern	cvar_t	*r_loadSkinsJKA;
+
 extern	cvar_t *r_consoleFont;
 extern	cvar_t *r_fontSharpness;
 extern	cvar_t *r_newRemaps;;
@@ -1773,7 +1792,6 @@ qboolean	R_GetEntityToken( char *buffer, int size );
 model_t		*R_AllocModel( void );
 
 void    	R_Init( void );
-void		R_LoadImage( const char *name, byte **pic, int *width, int *height );
 
 #ifdef USE_JK2_SHADER_TEXTURE_MODE
 image_t		*R_FindImageFile( const char *name, imgFlags_t flags, const textureMode_t *textureMode = NULL );
@@ -1792,7 +1810,9 @@ void		R_Set2DRatio( void );
 
 void		R_ImageList_f( void );
 void		R_SkinList_f( void );
-//void		R_FontList_f( void );
+#ifndef USE_JK2
+void		R_FontList_f( void );
+#endif
 
 void		R_InitFogTable( void );
 float		R_FogFactor( float s, float t );
@@ -2011,7 +2031,11 @@ MARKERS, POLYGON PROJECTION ON WORLD POLYGONS
 
 ============================================================
 */
+#ifdef USE_JK2
 int R_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projection, int maxPoints, vec3_t *pointBuffer, int maxFragments, markFragment_t *fragmentBuffer );
+#else
+int R_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projection, int maxPoints, vec3_t pointBuffer, int maxFragments, markFragment_t *fragmentBuffer );
+#endif
 /*
 ============================================================
 
@@ -2022,7 +2046,11 @@ SCENE GENERATION
 void R_InitNextFrame( void );
 
 void RE_ClearScene( void );
+#ifdef USE_JK2
 void RE_AddRefEntityToScene( const refEntity_t *ent, qboolean intShaderTime );
+#else
+void RE_AddRefEntityToScene( const refEntity_t *ent );
+#endif
 void RE_AddMiniRefEntityToScene( const miniRefEntity_t *ent );
 void RE_AddPolyToScene( qhandle_t hShader , int numVerts, const polyVert_t *verts, int num );
 void RE_AddLightToScene( const vec3_t org, float intensity, float r, float g, float b );
@@ -2205,7 +2233,7 @@ typedef struct backEndData_s {
 #else
 	dlight_t			dlights[MAX_DLIGHTS];
 #endif
-	trRefEntity_t		entities[MAX_REFENTITIES]; // MAX_REFENTITIES
+	trRefEntity_t		entities[MAX_REFENTITIES];
 	trMiniRefEntity_t	miniEntities[MAX_MINI_ENTITIES];
 	srfPoly_t			*polys;//[MAX_POLYS];
 	polyVert_t			*polyVerts;//[MAX_POLYVERTS];
@@ -2223,6 +2251,7 @@ void RB_ExecuteRenderCommands( const void *data );
 
 void R_AddDrawSurfCmd( drawSurf_t *drawSurfs, int numDrawSurfs );
 
+#ifdef USE_JK2
 void RE_SetColor( const vec4_t rgba );
 void RE_StretchPic( float x, float y, float w, float h,
 					  float s1, float t1, float s2, float t2, qhandle_t hShader, float xadjust, float yadjust );
@@ -2231,25 +2260,44 @@ void RE_RotatePic( float x, float y, float w, float h,
 void RE_RotatePic2( float x, float y, float w, float h,
 					  float s1, float t1, float s2, float t2,float a, qhandle_t hShader, float xadjust, float yadjust );
 void RE_BeginFrame( stereoFrame_t stereoFrame, qboolean skipBackend);
-#ifdef USE_JK2
 void RE_EndFrame( void );
 void RE_SwapBuffers( int *frontEndMsec, int *backEndMsec );
+void R_LoadImage( const char *name, byte **pic, int *width, int *height );
+
 #else
+
+void RE_SetColor( const float *rgba );
+void RE_StretchPic ( float x, float y, float w, float h,
+					  float s1, float t1, float s2, float t2, qhandle_t hShader );
+void RE_RotatePic ( float x, float y, float w, float h,
+					  float s1, float t1, float s2, float t2,float a, qhandle_t hShader );
+void RE_RotatePic2 ( float x, float y, float w, float h,
+					  float s1, float t1, float s2, float t2,float a, qhandle_t hShader );
+void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 void RE_EndFrame( int *frontEndMsec, int *backEndMsec );
 #endif
+
 void RE_TakeVideoFrame( int width, int height, byte *captureBuffer, byte *encodeBuffer, qboolean motionJpeg );
 
 /*
 Ghoul2 Insert Start
 */
 // tr_ghoul2.cpp
+#ifdef USE_JK2
+bool			LoadTGAPalletteImage ( const char *name, byte **pic, int *width, int *height);
 void			Create_Matrix(const float *angle, mdxaBone_t *matrix);
 void			Multiply_3x4Matrix(mdxaBone_t *out, const mdxaBone_t *in2, const mdxaBone_t *in);
 extern qboolean R_LoadMDXM ( model_t *mod, void *buffer, const char *name, qboolean bAlreadyCached );
 extern qboolean R_LoadMDXA ( model_t *mod, void *buffer, const char *name, qboolean bAlreadyCached );
-void			RE_InsertModelIntoHash( const char *name, model_t *mod );
+#else
+void			Multiply_3x4Matrix( mdxaBone_t *out, mdxaBone_t *in2, mdxaBone_t *in );
+extern qboolean R_LoadMDXM ( model_t *mod, void *buffer, const char *name, qboolean &bAlreadyCached );
+extern qboolean R_LoadMDXA ( model_t *mod, void *buffer, const char *name, qboolean &bAlreadyCached );
 void			ResetGhoul2RenderableSurfaceHeap( void );
-bool			LoadTGAPalletteImage ( const char *name, byte **pic, int *width, int *height);
+#endif
+
+void			RE_InsertModelIntoHash( const char *name, model_t *mod );
+
 /*
 Ghoul2 Insert End
 */
@@ -2357,7 +2405,7 @@ extern void VBO_Flush( void );
 #endif
 #endif
 
-
+#ifdef USE_JK2
 #ifndef TR_LOCAL_TOL_H	// hack
 #define TR_LOCAL_TOL_H
 static inline int Q_ftol( float f ) {
@@ -2373,5 +2421,4 @@ static inline int64_t Q_dtol( double f ) {
 	return (int64_t) f;
 }
 #endif
-
 #endif

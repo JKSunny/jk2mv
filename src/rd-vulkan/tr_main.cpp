@@ -23,9 +23,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 // tr_main.c -- main control flow for each frame
 
-#ifndef DEDICATED
 #include "tr_local.h"
-#include "../ghoul2/g2_local.h"
+#include "ghoul2/g2_local.h"
 
 trGlobals_t		tr;
 
@@ -114,6 +113,7 @@ int R_CullLocalBox( const vec3_t bounds[2] ) {
 int R_CullLocalPointAndRadius( const vec3_t pt, float radius )
 {
 	vec3_t transformed;
+#ifdef USE_JK2
 /*
 Ghoul2 Insert Start
 */
@@ -128,6 +128,7 @@ Ghoul2 Insert Start
 /*
 Ghoul2 Insert End
 */
+#endif
 	R_LocalPointToWorld(pt, transformed);
 
 	return R_CullPointAndRadius(transformed, radius);
@@ -506,15 +507,16 @@ static void R_SetFarClip( void )
 	// if not rendering the world (icons, menus, etc)
 	// set a 2k far clip plane
 	if ( tr.refdef.rdflags & RDF_NOWORLDMODEL ) {
-		// todo
-		/*if (tr.refdef.rdflags & RDF_AUTOMAP)
+#ifdef RDF_AUTOMAP
+		if (tr.refdef.rdflags & RDF_AUTOMAP)
 		{ //override the zfar then
 			tr.viewParms.zFar = 32768.0f;
 		}
 		else
-		{*/
+#endif
+		{
 			tr.viewParms.zFar = 2048.0f;
-		//}
+		}
 		return;
 	}
 
@@ -1296,7 +1298,7 @@ Radix sort with 4 byte size buckets
 static void R_RadixSort( drawSurf_t *source, int size )
 {
 	static drawSurf_t scratch[MAX_DRAWSURFS];
-#if 1 //Q3_LITTLE_ENDIAN
+#if defined(USE_JK2) || defined(Q3_LITTLE_ENDIAN)
 	R_Radix(0, size, source, scratch);
 	R_Radix(1, size, scratch, source);
 	R_Radix(2, size, source, scratch);
@@ -1463,16 +1465,19 @@ void R_AddDrawSurf( surfaceType_t *surface, shader_t *shader,
 {
 	int			index;
 
-	// todo
-	/*if (tr.refdef.rdflags & RDF_NOFOG)
+#ifdef RDF_NOFOG
+	if (tr.refdef.rdflags & RDF_NOFOG)
 	{
 		fogIndex = 0;
 	}
+#endif
 
+#if defined(SURF_FORCESIGHT) && defined(RDF_ForceSightOn)
 	if ((shader->surfaceFlags & SURF_FORCESIGHT) && !(tr.refdef.rdflags & RDF_ForceSightOn))
 	{	//if shader is only seen with ForceSight and we don't have ForceSight on, then don't draw
 		return;
-	}*/
+	}
+#endif
 
 	// instead of checking for overflow, we just mask the index
 	// so it wraps around
@@ -1647,16 +1652,19 @@ static void R_AddEntitySurfaces( void ) {
 					break;
 				case MOD_BAD:		// null model axis
 					if ((ent->e.renderfx & RF_THIRD_PERSON) && (tr.viewParms.portalView == PV_NONE)) {
-						// todo
-						//if (!(ent->e.renderfx & RF_SHADOW_ONLY))
-						//{
+#ifdef RF_SHADOW_ONLY
+						if (!(ent->e.renderfx & RF_SHADOW_ONLY))
+#endif
+						{
 							break;
-						//}
+						}
 					}
 
-					// todo
-					//if (ent->e.ghoul2 && G2API_HaveWeGhoul2Models(*((CGhoul2Info_v*)ent->e.ghoul2)))
+#ifdef USE_JK2					
 					if (ent->e.ghoul2 && G2API_HaveWeGhoul2Models(ent->e.ghoul2))
+#else
+					if (ent->e.ghoul2 && G2API_HaveWeGhoul2Models(*((CGhoul2Info_v*)ent->e.ghoul2)))
+#endif
 					{
 						R_AddGhoulSurfaces(ent);
 						break;
@@ -1752,4 +1760,3 @@ void R_RenderView( const viewParms_t *parms ) {
 
 	R_SortDrawSurfs( tr.refdef.drawSurfs + firstDrawSurf, numDrawSurfs - firstDrawSurf );
 }
-#endif

@@ -1187,13 +1187,14 @@ void R_BindAnimatedImage( const textureBundle_t *bundle ) {
 		return;
 	}
 
-	// todo
-	/*if ( backEnd.currentEntity->e.renderfx & RF_SETANIMINDEX )
+#ifdef RF_SETANIMINDEX
+	if ( backEnd.currentEntity->e.renderfx & RF_SETANIMINDEX )
 	{
 		index = backEnd.currentEntity->e.skinNum;
 	}
 	else
-	{*/
+#endif
+	{
 		// it is necessary to do this messy calc to make sure animations line up
 		// exactly with waveforms of the same frequency
 		index = Q_ftol( tess.shaderTime * bundle->imageAnimationSpeed * FUNCTABLE_SIZE );
@@ -1202,7 +1203,7 @@ void R_BindAnimatedImage( const textureBundle_t *bundle ) {
 		if ( index < 0 ) {
 			index = 0;	// may happen with shader time offsets
 		}
-	//}
+	}
 
 	if ( bundle->oneShotAnimMap )
 	{
@@ -1604,9 +1605,14 @@ void RB_StageIteratorGeneric( void )
 				forceRGBGen = CGEN_ENTITY;
 
 			// refraction
-			// todo
-			if ( tess.shader->useDistortion == qtrue/* || backEnd.currentEntity->e.renderfx & RF_DISTORTION*/ )
+#ifdef RF_DISTORTION
+			if ( tess.shader->useDistortion == qtrue || backEnd.currentEntity->e.renderfx & RF_DISTORTION )
+#else
+			if ( tess.shader->useDistortion == qtrue )
+#endif
+			{
 				is_refraction = qtrue;
+			}
 		}
 
 		tess_flags |= pStage->tessFlags;
@@ -1686,11 +1692,14 @@ void RB_StageIteratorGeneric( void )
 				
 				// depth write, so faces through the model will be stomped over by nearer ones. this works because
 				// we draw RF_FORCE_ENT_ALPHA stuff after everything else, including standard alpha surfs.
-				// todo
-				/*if ( backEnd.currentEntity->e.renderfx & RF_ALPHA_DEPTH ) 
+#ifdef RF_ALPHA_DEPTH
+				if ( backEnd.currentEntity->e.renderfx & RF_ALPHA_DEPTH ) 
 					def.state_bits = GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA | GLS_DEPTHMASK_TRUE;
-				else*/
+				else
+#endif
+				{
 					def.state_bits = GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA;	
+				}
 			}
 			
 			pipeline = vk_find_pipeline_ext( 0, &def, qfalse );

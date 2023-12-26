@@ -146,7 +146,7 @@ static qboolean	R_CullSurface( surfaceType_t *surface, shader_t *shader ) {
 
 	sface = ( srfSurfaceFace_t * ) surface;
 
-#if 0 // todo
+#ifndef USE_JK2
 	if (r_cullRoofFaces->integer)
 	{ //Very slow, but this is only intended for taking shots for automap images.
 		if (sface->plane.normal[2] > 0.0f &&
@@ -173,7 +173,7 @@ static qboolean	R_CullSurface( surfaceType_t *surface, shader_t *shader ) {
 			VectorSet(nNormal, 0.0f, 0.0f, 1.0f);
 			VectorMA(basePoint, 8192.0f, nNormal, endPoint);
 
-			CM_BoxTrace(&tr, basePoint, endPoint, NULL, NULL, 0, (CONTENTS_SOLID|CONTENTS_TERRAIN), qfalse);
+			ri.CM_BoxTrace(&tr, basePoint, endPoint, NULL, NULL, 0, (CONTENTS_SOLID|CONTENTS_TERRAIN), qfalse);
 
 			if (!tr.startsolid &&
 				!tr.allsolid &&
@@ -1038,8 +1038,11 @@ qboolean R_WriteWireframeMapToFile( void )
 		return qfalse;
 	}
 
-
+#ifdef USE_JK2
 	f = ri.FS_FOpenFileWrite("blahblah.bla");
+#else
+	f = ri.FS_FOpenFileWrite("blahblah.bla", qtrue);
+#endif
 	if (!f)
 	{ //can't create?
 		return qfalse;

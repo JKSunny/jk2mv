@@ -22,7 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 // tr_mesh.c: triangle model functions
-#ifndef DEDICATED
+
 #include "tr_local.h"
 
 float ProjectRadius( float r, vec3_t location )
@@ -189,7 +189,11 @@ int R_ComputeLOD( trRefEntity_t *ent ) {
 	md3Frame_t *frame;
 	int lod;
 
-	if ( tr.currentModel->numLods < 2 /*|| (ent->e.renderfx & RF_NOLOD)*/ )
+#ifdef RF_NOLOD
+	if ( tr.currentModel->numLods < 2 || (ent->e.renderfx & RF_NOLOD) )
+#else
+	if ( tr.currentModel->numLods < 2 )
+#endif
 	{
 		// model has only 1 LOD level, skip computations and bias
 		lod = 0;
@@ -237,8 +241,12 @@ int R_ComputeLOD( trRefEntity_t *ent ) {
 		}
 	}
 
-	//if (!(ent->e.renderfx & RF_NOLOD))
+#ifdef RF_NOLOD
+	if (!(ent->e.renderfx & RF_NOLOD))
+#endif
+	{
 		lod += r_lodbias->integer;
+	}
 
 	if ( lod >= tr.currentModel->numLods )
 		lod = tr.currentModel->numLods - 1;
@@ -451,4 +459,3 @@ void R_AddMD3Surfaces( trRefEntity_t *ent ) {
 	}
 
 }
-#endif

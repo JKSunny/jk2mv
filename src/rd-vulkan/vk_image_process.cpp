@@ -23,14 +23,6 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "tr_local.h"
 
-
-/*
-===============
-R_UpdateImages
-
-Update images when renderer size changes
-===============
-*/
 void R_SetColorMappings( void)
 {
     int		i, j;
@@ -129,7 +121,7 @@ void R_SetColorMappings( void)
             ri.WIN_SetGamma(&glConfig, s_gammatable_linear, s_gammatable_linear, s_gammatable_linear);
         else {
             if ( applyGamma ) {
-               ri.WIN_SetGamma(&glConfig, s_gammatable, s_gammatable, s_gammatable);
+                ri.WIN_SetGamma(&glConfig, s_gammatable, s_gammatable, s_gammatable);
             }
         }
     }

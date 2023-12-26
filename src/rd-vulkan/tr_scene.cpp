@@ -23,10 +23,14 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "tr_local.h"
 
-#include "../ghoul2/G2.h"
-#include "../ghoul2/g2_local.h"
-#include "../rd-common/matcomp.h"
-//#include "qcommon/disablewarnings.h"
+#include "ghoul2/G2.h"
+#include "ghoul2/g2_local.h"
+#ifdef USE_JK2
+#include "rd-common/matcomp.h"
+#else
+#include "qcommon/matcomp.h"
+#include "qcommon/disablewarnings.h"
+#endif
 
 static	int			r_firstSceneDrawSurf;
 #ifdef USE_PMLIGHT
@@ -213,6 +217,7 @@ RE_AddRefEntityToScene
 
 =====================
 */
+#ifdef USE_JK2
 void RE_AddRefEntityToScene( const refEntity_t *ent, qboolean intShaderTime ) {
 	if ( !tr.registered ) {
 		return;
@@ -253,6 +258,73 @@ void RE_AddRefEntityToScene( const refEntity_t *ent, qboolean intShaderTime ) {
 
 	r_numentities++;
 }
+#else
+void RE_AddRefEntityToScene( const refEntity_t *ent ) {
+	if ( !tr.registered ) {
+		return;
+	}
+
+	if ( r_numentities >= MAX_REFENTITIES ) {
+		ri.Printf(PRINT_DEVELOPER, "RE_AddRefEntityToScene: Dropping refEntity, reached MAX_REFENTITIES\n");
+		return;
+	}
+
+	/*if ( Q_isnan(ent->origin[0]) || Q_isnan(ent->origin[1]) || Q_isnan(ent->origin[2]) ) {
+		static qboolean firstTime = qtrue;
+		if (firstTime) {
+			firstTime = qfalse;
+			ri.Printf( PRINT_WARNING, "RE_AddRefEntityToScene passed a refEntity which has an origin with a NaN component\n");
+		}
+		return;
+	}*/
+
+	assert(!ent || ent->renderfx >= 0);
+
+	if (ent->reType == RT_ENT_CHAIN)
+	{ //minirefents must die.
+		return;
+	}
+
+#ifdef _DEBUG
+	if (ent->reType == RT_MODEL)
+	{
+		assert(ent->hModel || ent->ghoul2 || ent->customShader);
+	}
+#endif
+
+	if ( (int)ent->reType < 0 || ent->reType >= RT_MAX_REF_ENTITY_TYPE ) {
+		Com_Error( ERR_DROP, "RE_AddRefEntityToScene: bad reType %i", ent->reType );
+	}
+
+	backEndData->entities[r_numentities].e = *ent;
+	backEndData->entities[r_numentities].lightingCalculated = qfalse;
+
+	if (ent->ghoul2)
+	{
+		CGhoul2Info_v	&ghoul2 = *((CGhoul2Info_v *)ent->ghoul2);
+
+		if (!ghoul2[0].mModel)
+		{
+			ri.Printf( PRINT_ALL, "Your ghoul2 instance has no model!\n");
+		}
+	}
+
+	/*
+	if (ent->reType == RT_ENT_CHAIN)
+	{
+		refEntParent = r_numentities;
+		backEndData->entities[r_numentities].e.uRefEnt.uMini.miniStart = r_numminientities - r_firstSceneMiniEntity;
+		backEndData->entities[r_numentities].e.uRefEnt.uMini.miniCount = 0;
+	}
+	else
+	{
+	*/
+		refEntParent = -1;
+	//}
+
+	r_numentities++;
+}
+#endif
 
 /************************************************************************************************
  * RE_AddMiniRefEntityToScene                                                                   *
@@ -288,7 +360,11 @@ void RE_AddMiniRefEntityToScene( const miniRefEntity_t *ent )
 
 	memcpy(&tempEnt, ent, sizeof(*ent));
 	memset(((char *)&tempEnt)+sizeof(*ent), 0, sizeof(tempEnt) - sizeof(*ent));
+#ifdef USE_JK2
 	RE_AddRefEntityToScene(&tempEnt, qfalse);
+#else
+	RE_AddRefEntityToScene(&tempEnt);
+#endif
 #else
 
 	if ( ent->reType < 0 || ent->reType >= RT_MAX_REF_ENTITY_TYPE )
@@ -656,11 +732,12 @@ void RE_RenderScene( const refdef_t *fd ) {
 
 	RE_RenderWorldEffects();
 
-	// todo
-	/*if (tr.refdef.rdflags & RDF_AUTOMAP)
+#ifdef RDF_AUTOMAP
+	if ( tr.refdef.rdflags & RDF_AUTOMAP )
 	{
 		RE_RenderAutoMap();
-	}*/
+	}
+#endif
 }
 
 #if 0 //rwwFIXMEFIXME: Disable this before release!!!!!! I am just trying to find a crash bug.
