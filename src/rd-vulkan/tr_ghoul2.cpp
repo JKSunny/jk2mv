@@ -2781,8 +2781,6 @@ qboolean R_LoadMDXM( model_t *mod, void *buffer, const char *mod_name, qboolean 
 	lod = (mdxmLOD_t *) ( (byte *)mdxm + mdxm->ofsLODs );
 	for ( l = 0 ; l < mdxm->numLODs ; l++)
 	{
-		int	triCount = 0;
-
 		LL(lod->ofsEnd);
 		// swap all the surfaces
 		surf = (mdxmSurface_t *) ( (byte *)lod + sizeof (mdxmLOD_t) + (mdxm->numSurfaces * sizeof(mdxmLODSurfOffset_t)) );
@@ -2797,8 +2795,6 @@ qboolean R_LoadMDXM( model_t *mod, void *buffer, const char *mod_name, qboolean 
 			LL(surf->numBoneReferences);
 			LL(surf->ofsBoneReferences);
 //			LL(surf->maxVertBoneWeights);
-
-			triCount += surf->numTriangles;
 
 			if ( surf->numVerts > SHADER_MAX_VERTEXES ) {
 				ri.Error (ERR_DROP, "R_LoadMDXM: %s has more than %i verts on a surface (%i)",
@@ -2844,9 +2840,7 @@ qboolean R_LoadMDXM( model_t *mod, void *buffer, const char *mod_name, qboolean 
 			// find the next surface
 			surf = (mdxmSurface_t *)( (byte *)surf + surf->ofsEnd );
 		}
-#if _DEBUG
-		ri.Printf(PRINT_ALL, "Lod %d has %d tris in %d surfaces with %d bones\n", l, triCount, mdxm->numSurfaces, mdxm->numBones);
-#endif
+
 		// find the next LOD
 		lod = (mdxmLOD_t *)( (byte *)lod + lod->ofsEnd );
 	}

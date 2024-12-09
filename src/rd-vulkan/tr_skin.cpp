@@ -162,11 +162,8 @@ qhandle_t RE_RegisterIndividualSkin( const char *name , qhandle_t hSkin)
 			break;
 		}
 		surf = (skinSurface_t *) Hunk_Alloc( sizeof( *skin->surfaces[0] ), h_low );
-#ifdef USE_JK2	// unify this ..
 		skin->surfaces[skin->numSurfaces] = (skinSurface_t *)surf;
-#else
-		skin->surfaces[skin->numSurfaces] = (_skinSurface_t *)surf;
-#endif
+
 		Q_strncpyz( surf->name, surfName, sizeof( surf->name ) );
 
 		if (gServerSkinHack)	surf->shader = R_FindServerShader( token, lightmapsNone, stylesDefault, qtrue );
@@ -397,11 +394,7 @@ void	R_InitSkins( void ) {
 	skin = tr.skins[0] = (struct skin_s *)ri.Hunk_Alloc( sizeof( skin_t ), h_low );
 	Q_strncpyz( skin->name, "<default skin>", sizeof( skin->name )  );
 	skin->numSurfaces = 1;
-#ifdef USE_JK2	// unify this ..
 	skin->surfaces[0] = (skinSurface_t *)ri.Hunk_Alloc( sizeof( skinSurface_t ), h_low );
-#else
-	skin->surfaces[0] = (_skinSurface_t *)ri.Hunk_Alloc( sizeof( skinSurface_t ), h_low );
-#endif
 	skin->surfaces[0]->shader = tr.defaultShader;
 }
 

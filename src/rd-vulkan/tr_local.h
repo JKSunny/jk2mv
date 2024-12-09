@@ -255,7 +255,7 @@ typedef enum
 
 #if defined( _WIN32 )
 DEFINE_ENUM_FLAG_OPERATORS( imgFlags_t );
-#elif defined( __linux__ ) || defined( __APPLE__ )
+#elif defined( __linux__ ) || defined( __APPLE__ ) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
 inline constexpr imgFlags_t operator | (imgFlags_t a, imgFlags_t b) throw() {
 	return imgFlags_t(((int)a) | ((int)b));
 }
@@ -747,7 +747,6 @@ typedef struct trRefdef_s {
 
 	int					num_entities;
 	trRefEntity_t		*entities;
-	trMiniRefEntity_t	*miniEntities;
 
 	int					num_dlights;
 	struct dlight_s		*dlights;
@@ -771,26 +770,20 @@ typedef struct trRefdef_s {
 //=================================================================================
 
 // skins allow models to be retextured without modifying the model file
-typedef struct skinSurface_s {
+typedef struct {
 	char		name[MAX_QPATH];
 	shader_t	*shader;
 } skinSurface_t;
 
-#ifdef USE_JK2
-//
-// in Jedi Academy this lives in "rd-common/tr_types.h"
-//
-typedef struct _skinSurface_s {
-	char		name[MAX_QPATH];
-	void	*shader;
-} _skinSurface_t;
-
 typedef struct skin_s {
-	char		name[MAX_QPATH];		// game path, including extension
-	int			numSurfaces;
+	char			name[MAX_QPATH];		// game path, including extension
+	int				numSurfaces;
+#ifdef USE_JK2
 	skinSurface_t	*surfaces[/*MD3_MAX_SURFACES*/256];
-} skin_t;
+#else
+	skinSurface_t	*surfaces[128];
 #endif
+} skin_t;
 
 typedef struct fog_s {
 	int				originalBrushNumber;
@@ -1682,6 +1675,7 @@ extern	cvar_t	*r_marksOnTriangleMeshes;
 
 extern	cvar_t	*r_aspectCorrectFonts;
 extern	cvar_t	*cl_ratioFix;
+extern cvar_t	*r_patchStitching;
 
 // Vulkan
 extern cvar_t	*r_defaultImage;
@@ -1852,7 +1846,6 @@ shader_t	*FinishShader( void );
 void		R_InitShaders( qboolean server );
 void		R_ShaderList_f( void );
 void		R_RemapShader( const char *oldShader, const char *newShader, const char *timeOffset );
-void		R_ClearShaderHashTable( void );
 void		R_CreateDefaultShadingCmds( image_t *image );
 
 //
@@ -2009,7 +2002,6 @@ CURVE TESSELATION
 
 ============================================================
 */
-#define PATCH_STITCHING
 
 srfGridMesh_t	*R_SubdividePatchToGrid( int width, int height, drawVert_t points[MAX_PATCH_SIZE * MAX_PATCH_SIZE] );
 srfGridMesh_t	*R_GridInsertColumn( srfGridMesh_t *grid, int column, int row, vec3_t point, float loderror );
@@ -2234,7 +2226,6 @@ typedef struct backEndData_s {
 	dlight_t			dlights[MAX_DLIGHTS];
 #endif
 	trRefEntity_t		entities[MAX_REFENTITIES];
-	trMiniRefEntity_t	miniEntities[MAX_MINI_ENTITIES];
 	srfPoly_t			*polys;//[MAX_POLYS];
 	polyVert_t			*polyVerts;//[MAX_POLYVERTS];
 	renderCommandList_t	commands;
@@ -2246,12 +2237,12 @@ extern int max_polyverts;
 extern backEndData_t *backEndData;
 
 void *R_GetCommandBuffer( int bytes );
-void R_SyncRenderThread(void);
-void RB_ExecuteRenderCommands( const void *data );
 
 void R_AddDrawSurfCmd( drawSurf_t *drawSurfs, int numDrawSurfs );
 
 #ifdef USE_JK2
+//void R_SyncRenderThread(void);
+//void RB_ExecuteRenderCommands( const void *data );
 void RE_SetColor( const vec4_t rgba );
 void RE_StretchPic( float x, float y, float w, float h,
 					  float s1, float t1, float s2, float t2, qhandle_t hShader, float xadjust, float yadjust );
@@ -2331,7 +2322,6 @@ void		DrawNormals( const shaderCommands_t *pInput );
 void		RB_ShowImages( image_t** const pImg, uint32_t numImages );
 
 // ...
-void		R_ClearShaderHashTable( void );
 void		R_IssueRenderCommands( qboolean runPerformanceCounters );
 void		WIN_Shutdown( void );
 
@@ -2369,7 +2359,7 @@ void		R_Add_AllocatedImage( image_t *image );
 
 void		vk_bind( image_t *image );
 void		vk_upload_image( image_t *image, byte *pic );
-void		vk_upload_image_data( image_t *image, int x, int y, int width, int height, int mipmaps, byte *pixels, int size ) ;
+void		vk_upload_image_data( image_t *image, int x, int y, int width, int height, int mipmaps, byte *pixels, int size, qboolean update ) ;
 void		vk_generate_image_upload_data( image_t *image, byte *data, Image_Upload_Data *upload_data );
 void		vk_create_image( image_t *image, int width, int height, int mip_levels );
 

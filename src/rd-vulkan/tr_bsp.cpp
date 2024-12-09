@@ -24,7 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "tr_local.h"
 
-static const imgFlags_t lightmapFlags = IMGFLAG_NOLIGHTSCALE | IMGFLAG_NO_COMPRESSION | IMGFLAG_LIGHTMAP | IMGFLAG_NOSCALE;
+static const imgFlags_t lightmapFlags = IMGFLAG_NOLIGHTSCALE | IMGFLAG_NO_COMPRESSION | IMGFLAG_LIGHTMAP | IMGFLAG_NOSCALE | IMGFLAG_CLAMPTOEDGE;
 
 /*
 
@@ -160,9 +160,8 @@ static void R_LoadLightmaps( lump_t *l, lump_t *surfs, world_t &worldData ) {
 	int			len;
 	byte		*image;
 	int			imageSize;
-	int			i, j, numLightmaps = 0, textureInternalFormat = 0;
+	int			i, j, numLightmaps = 0;
 	float maxIntensity = 0;
-	double sumIntensity = 0;
 	int numColorComponents = 3;
 
 	const int lightmapSize = DEFAULT_LIGHTMAP_SIZE;
@@ -231,8 +230,6 @@ static void R_LoadLightmaps( lump_t *l, lump_t *surfs, world_t &worldData ) {
 	tr.lightmaps = (image_t **)ri.Hunk_Alloc( tr.numLightmaps * sizeof(image_t *), h_low );
 #endif
 
-	textureInternalFormat = GL_RGBA8;
-
 	if ( tr.worldInternalLightmapping )
 	{
 		for ( i = 0; i < tr.numLightmaps; i++ )
@@ -242,7 +239,7 @@ static void R_LoadLightmaps( lump_t *l, lump_t *surfs, world_t &worldData ) {
 				NULL,
 				tr.lightmapAtlasSize[0],
 				tr.lightmapAtlasSize[1],
-				lightmapFlags | IMGFLAG_CLAMPTOEDGE
+				lightmapFlags
 				);
 		}
 	}
@@ -346,8 +343,6 @@ static void R_LoadLightmaps( lump_t *l, lump_t *surfs, world_t &worldData ) {
 							image[j * 4 + 1] = out[1] * 255;
 							image[j * 4 + 2] = out[2] * 255;
 							image[j * 4 + 3] = 255;
-
-							sumIntensity += intensity;
 						}
 						else
 						{
@@ -366,17 +361,14 @@ static void R_LoadLightmaps( lump_t *l, lump_t *surfs, world_t &worldData ) {
 						lightmapHeight,
 						1,
 						image,
-						lightmapWidth * lightmapHeight * 4 );
+						lightmapWidth * lightmapHeight * 4, qtrue );
 				else
 					tr.lightmaps[i] = R_CreateImage(
 						va("*lightmap%d", i),
 						image,
 						lightmapWidth,
 						lightmapHeight,
-						//IMGTYPE_COLORALPHA,
-						IMGFLAG_NOLIGHTSCALE |
-						IMGFLAG_NO_COMPRESSION |
-						IMGFLAG_CLAMPTOEDGE);
+						lightmapFlags );
 			}
 
 			if ( externalLightmap )
@@ -1647,15 +1639,15 @@ static	void R_LoadSurfaces( const lump_t *surfs, const lump_t *verts, const lump
 		}
 	}
 
-#ifdef PATCH_STITCHING
-	R_StitchAllPatches(worldData);
-#endif
+	if ( r_patchStitching->integer ) {
+		R_StitchAllPatches( worldData );
+	}
 
 	R_FixSharedVertexLodError(worldData);
 
-#ifdef PATCH_STITCHING
-	R_MovePatchSurfacesToHunk(worldData);
-#endif
+	if ( r_patchStitching->integer ) {
+		R_MovePatchSurfacesToHunk( worldData );
+	}
 
 	vk_debug("...loaded %d faces, %i meshes, %i trisurfs, %i flares\n", numFaces, numMeshes, numTriSurfs, numFlares );
 }
