@@ -1767,9 +1767,10 @@ CRainSystem::CRainSystem(int maxRain) :
 
 	mRainList = new SParticle[mMaxRain];
 
-#if 0
-	mImage = R_FindImageFile("gfx/world/rain", qfalse, qfalse, qfalse, qfalse);
-	GL_Bind(mImage);
+
+	mImage = R_FindImageFile("gfx/world/rain", IMGFLAG_NONE);
+
+#if 0	GL_Bind(mImage);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 #endif

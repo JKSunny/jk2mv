@@ -28,6 +28,10 @@
 .builds
 *.dotCover
 
+out/
+.vs/
+*.bat
+
 # Visual C++ cache files
 ipch/
 *.aps
@@ -41,11 +45,6 @@ ipch/
 
 # ReSharper is a .NET coding add-in
 _ReSharper*
-
-# CMake plugin
-/.vs
-/out
-*.json
 
 #################
 ## Eclipse
@@ -99,3 +98,34 @@ GPATH
 
 # ignore all subdirectories of the build directory
 /build/*/*
+*.vcxproj
+*.filters
+*.cmake
+*.stamp
+*.depend
+*.txt
+*.exe
+*.rule
+*.bin
+*.tlog
+*.check_cache
+*.list
+*.log
+*.recipe
+*.sln
+CMakeFiles/git-data/head-ref
+mv_setup.h
+mvsdk_setup.h
+CMakeFiles/3.23.0-rc1/CompilerIdC/CMakeCCompilerId.c
+CMakeFiles/3.23.0-rc1/CompilerIdCXX/CMakeCXXCompilerId.cpp
+CMakeFiles/git-data/HEAD
+src/mvsdk
+assets/assetsmv.pk3
+tools/Debug/q3asm.exp
+tools/Debug/q3asm.lib
+src/jk2mvmp.dir/Debug/mv.res
+*.cfg
+*.dm_15
+*.dat
+*.zip
+*.res
