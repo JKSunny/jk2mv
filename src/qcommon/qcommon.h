@@ -181,11 +181,14 @@ typedef int dlHandle_t;
 typedef void(*dl_ended_callback)(dlHandle_t handle, qboolean success, const char *err_msg);
 typedef void(*dl_status_callback)(size_t total_bytes, size_t downloaded_bytes);
 
+void		NET_HTTP_Init();
 void		NET_HTTP_Shutdown();
 void		NET_HTTP_ProcessEvents();
+void		NET_HTTP_AllowClient(int clientNum, netadr_t addr);
+void		NET_HTTP_DenyClient(int clientNum);
 int			NET_HTTP_StartServer(int port);
 void		NET_HTTP_StopServer();
-dlHandle_t	NET_HTTP_StartDownload(const char *url, const char *toPath, dl_ended_callback ended_callback, dl_status_callback status_callback, const char *userAgent, const char *referer);
+dlHandle_t	NET_HTTP_StartDownload(const char *url, const char *toPath, dl_ended_callback ended_callback, dl_status_callback status_callback);
 void		NET_HTTP_StopDownload(dlHandle_t handle);
 
 void		NET_SendPacket (netsrc_t sock, int length, const void *data, netadr_t to);
@@ -733,6 +736,7 @@ qboolean FS_ComparePaks(char *neededpaks, int len, int *chksums, size_t maxchksu
 qboolean FS_Rename( const char *from, const char *to );
 
 const char *FS_MV_VerifyDownloadPath(const char *pk3file);
+qboolean FS_SV_VerifyZipFile( const char *zipfile, int *checksum );
 
 int FS_GetDLList(dlfile_t *files, int maxfiles);
 qboolean FS_RMDLPrefix(const char *qpath);
@@ -794,7 +798,7 @@ unsigned	Com_BlockChecksum( const void *buffer, int length );
 unsigned	Com_BlockChecksumKey (void *buffer, int length, int key);
 int			Com_HashKey(const char *string, int maxlen);
 int			Com_Filter(const char *filter, const char *name, int casesensitive);
-int			Com_FilterPath(char *filter, char *name, int casesensitive);
+int			Com_FilterPath(char *filter, const char *name, int casesensitive);
 int			Com_RealTime(qtime_t *qtime);
 qboolean	Com_SafeMode( void );
 void Com_RunAndTimeServerPacket(netadr_t *evFrom, msg_t *buf);
@@ -1033,6 +1037,11 @@ typedef struct {
 	node_t*		lhead;
 	node_t*		ltail;
 	node_t*		loc[HMAX+1];
+	// freelist is a head of linked list of nodePtrs
+	// elements. nodePtrs element type is overloaded and may hold
+	// node_t* pointer pointing to nodeList element or node_t**
+	// pointer pointing to another nodePtrs element when part of
+	// freelist!
 	node_t**	freelist;
 
 	node_t		nodeList[768];

@@ -713,7 +713,7 @@ int Com_Filter(const char *filter, const char *name, int casesensitive)
 Com_FilterPath
 ============
 */
-int Com_FilterPath(char *filter, char *name, int casesensitive)
+int Com_FilterPath(char *filter, const char *name, int casesensitive)
 {
 	int i;
 	char new_filter[MAX_QPATH];
@@ -2601,6 +2601,7 @@ void Com_Init( char *commandLine ) {
 
 	SP_Init();
 	Sys_Init();
+	NET_HTTP_Init();
 
 	srand(time(NULL));
 	Netchan_Init( rand() % 0xffff );	// pick a port value that should be nice and random
