@@ -2307,7 +2307,6 @@ void RE_LoadWorldMap_Actual( const char *name, world_t &worldData, int index )
 
 	// check for cached disk file from the server first...
 	//
-	// todo
 	if (ri.CM_GetCachedMapDiskImage())
 	{
 		buffer = (byte *)ri.CM_GetCachedMapDiskImage();
@@ -2318,19 +2317,17 @@ void RE_LoadWorldMap_Actual( const char *name, world_t &worldData, int index )
 		//
 		ri.FS_ReadFile( name, (void **)&buffer );
 		if ( !buffer ) {
-			ri.Error (ERR_DROP, "RE_LoadWorldMap: %s not found", name);
+			Com_Error (ERR_DROP, "RE_LoadWorldMap: %s not found", name);
 		}
 	}
 
 	memset( &worldData, 0, sizeof( worldData ) );
 	Q_strncpyz( worldData.name, name, sizeof( worldData.name ) );
-	//Q_strncpyz( tr.worldDir, name, sizeof( tr.worldDir ) );
+	Q_strncpyz( tr.worldDir, name, sizeof( tr.worldDir ) );
 	Q_strncpyz( worldData.baseName, COM_SkipPath( worldData.name ), sizeof( worldData.name ) );
 
-	Com_Printf("------------ %s", worldData.name);
-
 	COM_StripExtension( worldData.baseName, worldData.baseName, sizeof( worldData.baseName ) );
-	//COM_StripExtension( tr.worldDir, tr.worldDir, sizeof( tr.worldDir ) );
+	COM_StripExtension( tr.worldDir, tr.worldDir, sizeof( tr.worldDir ) );
 
 	startMarker = (byte *)Hunk_Alloc(0, h_low);
 	c_gridVerts = 0;
@@ -2395,8 +2392,6 @@ void RE_LoadWorldMap_Actual( const char *name, world_t &worldData, int index )
 void RE_LoadWorldMap( const char *name )
 {
 	ri.CM_SetUsingCache( qtrue );
-
 	RE_LoadWorldMap_Actual( name, s_worldData, 0 );
-
 	ri.CM_SetUsingCache( qfalse );
 }

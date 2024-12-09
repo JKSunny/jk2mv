@@ -21,7 +21,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 ===========================================================================
 */
 
-#ifndef DEDICATED
+
+#ifndef DEDICATED	//USE_JK2
+
+
 #include "tr_local.h"
 #include "tr_WorldEffects.h"
 
@@ -308,13 +311,16 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 			if (entityNum != REFENTITYNUM_WORLD)
 			{
 				backEnd.currentEntity = &backEnd.refdef.entities[entityNum];
+#ifdef USE_JK2
 				if (backEnd.currentEntity->intShaderTime) {
 					backEnd.refdef.floatTime = originalTime - 0.001 * backEnd.currentEntity->e.shaderTime.i;
 				}
 				else{
 					backEnd.refdef.floatTime = originalTime - backEnd.currentEntity->e.shaderTime.f;
 				}
-
+#else
+				backEnd.refdef.floatTime = originalTime - backEnd.currentEntity->e.shaderTime;
+#endif
 				// set up the transformation matrix
 				R_RotateForEntity(backEnd.currentEntity, &backEnd.viewParms, &backEnd.ori );
 
@@ -349,10 +355,12 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 			oldEntityNum = entityNum;
 		}
 
+#ifdef USE_JK2
 		qboolean isDistortionShader = qfalse;
-		//qboolean isDistortionShader = (qboolean)
-		//	((shader->useDistortion == qtrue) || (backEnd.currentEntity && backEnd.currentEntity->e.renderfx & RF_DISTORTION));
-
+#else
+		qboolean isDistortionShader = (qboolean)
+			((shader->useDistortion == qtrue) || (backEnd.currentEntity && backEnd.currentEntity->e.renderfx & RF_DISTORTION));
+#endif
 		if ( backEnd.refractionFill != isDistortionShader ) {
 			if ( vk.refractionActive && vk.renderPassIndex != RENDER_PASS_REFRACTION && !backEnd.hasRefractionSurfaces )
 				backEnd.hasRefractionSurfaces = qtrue;
@@ -458,7 +466,6 @@ static void RB_RenderLitSurfList( dlight_t *dl ) {
 		// change the tess parameters if needed
 		// a "entityMergable" shader is a shader that can have surfaces from seperate
 		// entities merged into a single batch, like smoke and blood puff sprites
-		// todo
 		if (((oldSort ^ litSurf->sort) & ~QSORT_REFENTITYNUM_MASK) || !shader->entityMergable) {
 			if (oldShader != NULL) {
 				RB_EndSurface();
@@ -478,13 +485,19 @@ static void RB_RenderLitSurfList( dlight_t *dl ) {
 			if (entityNum != REFENTITYNUM_WORLD) {
 				backEnd.currentEntity = &backEnd.refdef.entities[entityNum];
 
+#ifdef USE_JK2
 				if (backEnd.currentEntity->intShaderTime) {
 					backEnd.refdef.floatTime = originalTime - 0.001 * backEnd.currentEntity->e.shaderTime.i;
 				} else {
 					// precision loss on high server time
 					backEnd.refdef.floatTime = originalTime - backEnd.currentEntity->e.shaderTime.f;
 				}
-
+#else
+				/*if (backEnd.currentEntity->intShaderTime)
+					backEnd.refdef.floatTime = originalTime - (double)(backEnd.currentEntity->e.shaderTime.i) * 0.001;
+				else*/
+				backEnd.refdef.floatTime = originalTime - (double)backEnd.currentEntity->e.shaderTime;
+#endif
 				// set up the transformation matrix
 				R_RotateForEntity(backEnd.currentEntity, &backEnd.viewParms, &backEnd.ori );
 
@@ -584,7 +597,11 @@ void RE_StretchRaw ( int x, int y, int w, int h, int cols, int rows, const byte 
 	}
 
 	tr.cinematicShader->stages[0]->bundle[0].image[0] = tr.scratchImage[client];
+#ifdef USE_JK2
 	RE_StretchPic(x, y, w, h, 0.5f / cols, 0.5f / rows, 1.0f - 0.5f / cols, 1.0f - 0.5 / rows, tr.cinematicShader->index, 0, 0);
+#else
+	RE_StretchPic(x, y, w, h, 0.5f / cols, 0.5f / rows, 1.0f - 0.5f / cols, 1.0f - 0.5 / rows, tr.cinematicShader->index);
+#endif
 }
 
 /*
@@ -996,7 +1013,8 @@ RB_SwapBuffers
 
 =============
 */
-const void	*RB_SwapBuffers( const void *data ) {			// rb_endframe right?
+// USE_JK2 rb_endframe right?
+const void	*RB_SwapBuffers( const void *data ) {
 	const swapBuffersCommand_t	*cmd;
 
 	// finish any 2D drawing if needed
@@ -1062,17 +1080,16 @@ const void	*RB_WorldEffects( const void *data )
 
 	cmd = (const drawBufferCommand_t *)data;
 
+#ifndef USE_JK2
 	// Always flush the tess buffer
-	// todo
-	/*if ( tess.shader && tess.numIndexes )
+	if ( tess.shader && tess.numIndexes )
 		RB_EndSurface();
 
 	RB_RenderWorldEffects();
 
 	if ( tess.shader )
 		RB_BeginSurface( tess.shader, tess.fogNum );
-	*/
-
+#endif
 	return (const void *)(cmd + 1);
 }
 
@@ -1158,4 +1175,5 @@ void RB_ExecuteRenderCommands( const void *data ) {
 	}
 
 }
-#endif
+
+#endif // #ifndef DEDICATED	//USE_JK2

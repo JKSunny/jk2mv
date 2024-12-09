@@ -1386,9 +1386,13 @@ static const byte *R_ClusterPVS ( int cluster ) {
 R_inPVS
 =================
 */
+#ifdef USE_JK2
 qboolean R_inPVS( const vec3_t p1, const vec3_t p2 ) {
-	// todo
-	/*int		leafnum;
+	return qtrue;
+}
+#else
+qboolean R_inPVS( const vec3_t p1, const vec3_t p2, byte *mask ) {
+	int		leafnum;
 	int		cluster;
 
 	leafnum = ri.CM_PointLeafnum (p1);
@@ -1401,24 +1405,10 @@ qboolean R_inPVS( const vec3_t p1, const vec3_t p2 ) {
 	cluster = ri.CM_LeafCluster (leafnum);
 	if ( mask && (!(mask[cluster>>3] & (1<<(cluster&7)) ) ) )
 		return qfalse;
-	*/
-
-
-
-
-	/*mnode_t *leaf;
-	byte	*vis;
-
-	leaf = R_PointInLeaf( p1 );
-	vis = CM_ClusterPVS( leaf->cluster );
-	leaf = R_PointInLeaf( p2 );
-
-	if ( !(vis[leaf->cluster>>3] & (1<<(leaf->cluster&7))) ) {
-		return qfalse;
-	}*/
 
 	return qtrue;
 }
+#endif
 
 /*
 ===============

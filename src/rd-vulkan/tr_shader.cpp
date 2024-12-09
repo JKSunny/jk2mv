@@ -89,7 +89,7 @@ const byte stylesDefault[MAXLIGHTMAPS] =
 	LS_LSNONE
 };
 
-
+#ifdef USE_JK2
 /*
 Ghoul2 Insert Start
 */
@@ -115,6 +115,7 @@ int R_FindHitMat(const char *fname)
 /*
 Ghoul2 Insert End
 */
+#endif
 
 void setDefaultShader( void )
 {
@@ -2517,14 +2518,20 @@ inline qboolean IsShader( shader_t *sh, const char *name, const int *lightmapInd
 		return qtrue;
 #endif
 
+
 	for ( i = 0; i < MAXLIGHTMAPS; i++ )
 	{
+#ifdef USE_JK2
 		if ( sh->lightmapIndex[i] != lightmapIndex[i] )
+#else
+		if (sh->lightmapSearchIndex[i] != lightmapIndex[i])
+#endif	
 			return qfalse;
 
 		if ( sh->styles[i] != styles[i] )
 			return qfalse;
 	}
+
 
 	return qtrue;
 }
@@ -3439,7 +3446,6 @@ shader_t *R_FindShader( const char *name, const int *lightmapIndex, const byte *
 
 		sh = sh->next;
 	}
-
 
 	// clear the global shader
 	InitShader(strippedName, lightmapIndex, styles);
@@ -4973,7 +4979,7 @@ shader_t *GeneratePermanentShader( void )
 #else
 	if ( tr.numShaders == MAX_SHADERS ) {
 #endif
-		ri.Printf( PRINT_WARNING, "WARNING: GeneratePermanentShader - MAX_SHADERS hit\n");
+		vk_debug("WARNING: GeneratePermanentShader - MAX_SHADERS hit\n");
 		return tr.defaultShader;
 	}
 
@@ -5228,11 +5234,10 @@ void R_InitShaders( qboolean server )
 
 	vk_debug("Initializing Shaders\n");
 
-	memset( hashTable, 0, sizeof(hashTable) );
+	memset(hashTable, 0, sizeof(hashTable));
 #ifdef USE_JK2_SHADER_REMAP
 	memset( advancedRemapShadersHashTable, 0, sizeof(advancedRemapShadersHashTable) );
 #endif
-
 	if ( !server )
 	{
 		CreateInternalShaders();

@@ -280,7 +280,9 @@ void *RE_RegisterServerModels_Malloc( int iSize, void *pvDiskBufferIfJustLoaded,
 #endif
 {
 	char sModelName[MAX_QPATH];
-
+#ifndef USE_JK2
+	assert(CachedModels);
+#endif
 	Q_strncpyz(sModelName,psModelFileName,sizeof(sModelName));
 	Q_strlwr  (sModelName);
 

@@ -804,7 +804,6 @@ __initStart:
 #else
 	if (!ri.VK_createSurfaceImpl(vk.instance, &vk.surface)) 
 #endif
-	
 	{
 		ri.Error(ERR_FATAL, "Error creating Vulkan surface");
 		return;

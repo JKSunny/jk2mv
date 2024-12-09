@@ -649,9 +649,8 @@ RB_TakeVideoFrameCmd
 */
 const void *RB_TakeVideoFrameCmd( const void *data )
 {
-	// todo
+	// USE_JK2 todo
 	const videoFrameCommand_t *cmd;
-	
 	byte		*cBuf;
 	size_t		memcount, linelen;
 	int			padwidth, avipadwidth, padlen, avipadlen;
@@ -716,7 +715,7 @@ const void *RB_TakeVideoFrameCmd( const void *data )
 
 		ri.CL_WriteAVIVideoFrame(cmd->encodeBuffer, avipadwidth * cmd->height);
 	}
-	
+
 	return (const void*)(cmd + 1);
 }
 
@@ -1161,9 +1160,9 @@ void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 		if (destroyWindow){
 			vk_delete_textures();
 
-#ifndef USE_JK2	// todo
-			//if (restarting)
-				//SaveGhoul2InfoArray();
+#ifndef USE_JK2 // todo
+			if (restarting)
+				SaveGhoul2InfoArray();
 #endif
 		}
 
@@ -1175,7 +1174,11 @@ void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 
 		Com_Memset(&glState, 0, sizeof(glState));
 
+#ifdef USE_JK2
 		if (destroyWindow /*&& !restarting*/) {
+#else
+		if (destroyWindow && !restarting) {
+#endif
 			ri.VK_destroyWindow();
 			Com_Memset(&glConfig, 0, sizeof(glConfig));
 		}
@@ -1276,7 +1279,9 @@ static void GetRealRes( int *w, int *h ) {
 	*h = glConfig.vidHeight;
 }
 
-
+#ifndef USE_JK2
+extern void R_SVModelInit( void ); //tr_model.cpp
+#endif
 extern void R_AutomapElevationAdjustment( float newHeight ); //tr_world.cpp
 extern qboolean R_InitializeWireframeAutomap( void ); //tr_world.cpp
 
@@ -1290,16 +1295,26 @@ GetRefAPI
 @@@@@@@@@@@@@@@@@@@@@
 */
 extern "C" {
+#ifdef USE_JK2
 Q_EXPORT refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
+#else
+Q_EXPORT refexport_t* QDECL GetRefAPI( int apiVersion, refimport_t *rimp ) {
+#endif
 	static refexport_t	re;
 
+	assert( rimp );
 	ri = *rimp;
 
-	Com_Memset( &re, 0, sizeof( re ) );
+	memset( &re, 0, sizeof( re ) );
 
 	if ( apiVersion != REF_API_VERSION ) {
+#ifdef USE_JK2
 		ri.Printf(PRINT_ALL, "Mismatched REF_API_VERSION: expected %i, got %i\n",
 			REF_API_VERSION, apiVersion );
+#else
+		// revert this to ri.Printf. if it hasn't happened yet remind sunny
+		vk_debug("Mismatched REF_API_VERSION: expected %i, got %i\n", REF_API_VERSION, apiVersion );
+#endif
 		return NULL;
 	}
 
@@ -1481,4 +1496,5 @@ Q_EXPORT refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 #endif //!DEDICATED
 	return &re;
 }
-}
+
+} //extern "C"

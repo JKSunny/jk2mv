@@ -1507,3 +1507,4 @@ void RB_DrawSurfaceSprites(const shaderStage_t *stage, const ss_input *input)
 
 	sssurfaces++;
 }
+

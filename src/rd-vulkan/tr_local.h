@@ -1946,8 +1946,11 @@ WORLD MAP
 */
 void R_AddBrushModelSurfaces( trRefEntity_t *e );
 void R_AddWorldSurfaces( void );
+#ifdef USE_JK2
 qboolean R_inPVS( const vec3_t p1, const vec3_t p2);
-
+#else
+qboolean R_inPVS( const vec3_t p1, const vec3_t p2, byte *mask );
+#endif
 
 /*
 ============================================================

@@ -196,9 +196,15 @@ void RE_AddDecalToScene( qhandle_t decalShader, const vec3_t origin, const vec3_
 
 	// get the fragments
 	VectorScale( dir, -20, projection );
+#ifdef USE_JK2
 	numFragments = R_MarkFragments( 4, (const vec3_t*)originalPoints,
 					projection, MAX_DECAL_POINTS, markPoints,
 					MAX_DECAL_FRAGMENTS, markFragments );
+#else
+	numFragments = R_MarkFragments( 4, (const vec3_t*)originalPoints,
+					projection, MAX_DECAL_POINTS, markPoints[0],
+					MAX_DECAL_FRAGMENTS, markFragments );
+#endif
 
 	colors[0] = red * 255;
 	colors[1] = green * 255;

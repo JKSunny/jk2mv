@@ -277,6 +277,7 @@ void vk_set_fastsky_color( void ) {
 		case 3: out = &colorGreen; break;
 		case 4: out = &colorBlue; break;
 		case 5: out = &colorYellow; break;
+#ifdef USE_JK2 // :'(
 		case 6: out = &colorMagenta; break;
 		case 7: out = &colorCyan; break;
 		case 8: out = &colorWhite; break;
@@ -285,6 +286,17 @@ void vk_set_fastsky_color( void ) {
 		case 11: out = &colorDkGrey; break;
 		case 12: out = &colorLtBlue; break;
 		case 13: out = &colorDkBlue; break;
+#else
+		case 6: out = &colorOrange; break;
+		case 7: out = &colorMagenta; break;
+		case 8: out = &colorCyan; break;
+		case 9: out = &colorWhite; break;
+		case 10: out = &colorLtGrey; break;
+		case 11: out = &colorMdGrey; break;
+		case 12: out = &colorDkGrey; break;
+		case 13: out = &colorLtBlue; break;
+		case 14: out = &colorDkBlue; break;
+#endif
 		default: out = &colorBlack;
 	}
 
