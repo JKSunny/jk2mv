@@ -1258,7 +1258,6 @@ void G2_ProcessSurfaceBolt(mdxaBone_v &bonePtr, mdxmSurface_t *surface, int bolt
 
 }
 
-
 // now go through all the generated surfaces that aren't included in the model surface hierarchy and create the correct bolt info for them
 void G2_ProcessGeneratedSurfaceBolts(CGhoul2Info &ghoul2, mdxaBone_v &bonePtr, model_t *mod_t)
 {
@@ -1289,7 +1288,7 @@ void RenderSurfaces(CRenderSurface &RS)
 
 	// back track and get the surfinfo struct for this surface
 	mdxmSurface_t			*surface = (mdxmSurface_t *)G2_FindSurface((void *)RS.currentModel, RS.surfaceNum, RS.lod);
-	mdxmHierarchyOffsets_t	*surfIndexes = (mdxmHierarchyOffsets_t *)((byte *)RS.currentModel->mdxm + sizeof(mdxmHeader_t));
+	mdxmHierarchyOffsets_t	*surfIndexes = (mdxmHierarchyOffsets_t *)((byte *)RS.currentModel->data.glm->header + sizeof(mdxmHeader_t));
 	mdxmSurfHierarchy_t		*surfInfo = (mdxmSurfHierarchy_t *)((byte *)surfIndexes + surfIndexes->offsets[surface->thisSurfaceIndex]);
 
 	// see if we have an override surface in the surface list
@@ -1413,7 +1412,7 @@ void ProcessModelBoltSurfaces(int surfaceNum, surfaceInfo_v &rootSList,
 
 	// back track and get the surfinfo struct for this surface
 	mdxmSurface_t			*surface = (mdxmSurface_t *)G2_FindSurface((void *)currentModel, surfaceNum, 0);
-	mdxmHierarchyOffsets_t	*surfIndexes = (mdxmHierarchyOffsets_t *)((byte *)currentModel->mdxm + sizeof(mdxmHeader_t));
+	mdxmHierarchyOffsets_t	*surfIndexes = (mdxmHierarchyOffsets_t *)((byte *)currentModel->data.glm->header + sizeof(mdxmHeader_t));
 	mdxmSurfHierarchy_t		*surfInfo = (mdxmSurfHierarchy_t *)((byte *)surfIndexes + surfIndexes->offsets[surface->thisSurfaceIndex]);
 
 	// see if we have an override surface in the surface list
@@ -1459,13 +1458,15 @@ void G2_ConstructUsedBoneList(CConstructBoneList &CBL)
 {
 	int	 		i, j;
 	int			offFlags = 0;
+	mdxmHeader_t *mdxm = CBL.currentModel->data.glm->header;
 
 	// back track and get the surfinfo struct for this surface
 	const mdxmSurface_t			*surface = (mdxmSurface_t *)G2_FindSurface((void *)CBL.currentModel, CBL.surfaceNum, 0);
-	const mdxmHierarchyOffsets_t	*surfIndexes = (mdxmHierarchyOffsets_t *)((byte *)CBL.currentModel->mdxm + sizeof(mdxmHeader_t));
+	const mdxmHierarchyOffsets_t	*surfIndexes = (mdxmHierarchyOffsets_t *)((byte *)mdxm + sizeof(mdxmHeader_t));
 	const mdxmSurfHierarchy_t	*surfInfo = (const mdxmSurfHierarchy_t *)((const byte *)surfIndexes + surfIndexes->offsets[surface->thisSurfaceIndex]);
-	const model_t				*mod_a = R_GetModelByHandle(CBL.currentModel->mdxm->animIndex);
-	const mdxaSkelOffsets_t		*offsets = (mdxaSkelOffsets_t *)((byte *)mod_a->mdxa + sizeof(mdxaHeader_t));
+	const model_t				*mod_a = R_GetModelByHandle(mdxm->animIndex);
+	mdxaHeader_t				*mdxa = mod_a->data.gla;
+	const mdxaSkelOffsets_t		*offsets = (mdxaSkelOffsets_t *)((byte *)mdxa + sizeof(mdxaHeader_t));
 	const mdxaSkel_t			*skel, *childSkel;
 
 	// see if we have an override surface in the surface list
@@ -1491,13 +1492,13 @@ void G2_ConstructUsedBoneList(CConstructBoneList &CBL)
 			CBL.boneUsedList[iBoneIndex] = 1;
 
 			// now go and check all the descendant bones attached to this bone and see if any have the always flag on them. If so, activate them
-			skel = (mdxaSkel_t *)((byte *)mod_a->mdxa + sizeof(mdxaHeader_t) + offsets->offsets[iBoneIndex]);
+			skel = (mdxaSkel_t *)((byte *)mdxa + sizeof(mdxaHeader_t) + offsets->offsets[iBoneIndex]);
 
 			// for every child bone...
 			for (j=0; j< skel->numChildren; j++)
 			{
 				// get the skel data struct for each child bone of the referenced bone
-				childSkel = (mdxaSkel_t *)((byte *)mod_a->mdxa + sizeof(mdxaHeader_t) + offsets->offsets[skel->children[j]]);
+				childSkel = (mdxaSkel_t *)((byte *)mdxa + sizeof(mdxaHeader_t) + offsets->offsets[skel->children[j]]);
 
 				// does it have the always on flag on?
 				if (childSkel->flags & G2BONEFLAG_ALWAYSXFORM)
@@ -1515,7 +1516,7 @@ void G2_ConstructUsedBoneList(CConstructBoneList &CBL)
 				if (CBL.boneUsedList[iParentBone])	// no need to go higher
 					break;
 				CBL.boneUsedList[iParentBone] = 1;
-				skel = (mdxaSkel_t *)((byte *)mod_a->mdxa + sizeof(mdxaHeader_t) + offsets->offsets[iParentBone]);
+				skel = (mdxaSkel_t *)((byte *)mdxa + sizeof(mdxaHeader_t) + offsets->offsets[iParentBone]);
 				iParentBone = skel->parent;
 			}
 		}
@@ -1540,12 +1541,15 @@ void G2_ConstructUsedBoneList(CConstructBoneList &CBL)
 // on the previous model, since it ensures the model being attached to is built and rendered first.
 
 // NOTE!! This assumes at least one model will NOT have a parent. If it does - we are screwed
-static void G2_Sort_Models(CGhoul2Info_v &ghoul2, int * const modelList, int * const modelCount)
+static void G2_Sort_Models(CGhoul2Info_v &ghoul2, int * const modelList, int modelListCapacity, int * const modelCount)
 {
 	int		startPoint, endPoint;
 	int		boltTo, j;
 
 	*modelCount = 0;
+
+	if ( modelListCapacity < ghoul2.size() )
+		return;
 
 	// first walk all the possible ghoul2 models, and stuff the out array with those with no parents
 	for (size_t i = 0; i < ghoul2.size(); i++)
@@ -1606,6 +1610,7 @@ const static mdxaBone_t		identityMatrix = {
 	{ 1.0f, 0.0f, 0.0f, 0.0f },
 	{ 0.0f, 0.0f, 1.0f, 0.0f }
 }};
+
 
 /*
 ==============
@@ -1719,10 +1724,11 @@ void R_AddGhoulSurfaces( trRefEntity_t *ent ) {
 #endif // !DEDICATED
 
 	// order sort the ghoul 2 models so bolt ons get bolted to the right model
-	G2_Sort_Models(ghoul2, modelList, &modelCount);
+	G2_Sort_Models(ghoul2, modelList, ARRAY_LEN(modelList), &modelCount);
 
 	// construct a world matrix for this entity
-	G2_GenerateWorldMatrix(ent->e.angles, ent->e.origin);
+	if( !vk.vboGhoul2Active )
+		G2_GenerateWorldMatrix(ent->e.angles, ent->e.origin);
 
 	// walk each possible model for this entity and try rendering it out
 	for (j=0; j<modelCount; j++)
@@ -1734,8 +1740,8 @@ void R_AddGhoulSurfaces( trRefEntity_t *ent ) {
 		if (!(ghoul2[i].mFlags & GHOUL2_NOMODEL))
 		{
 			currentModel = R_GetModelByHandle(ghoul2[i].mModel);
-			animModel =  R_GetModelByHandle(currentModel->mdxm->animIndex);
-			aHeader = animModel->mdxa;
+			animModel =  R_GetModelByHandle(currentModel->data.glm->header->animIndex);
+			aHeader = animModel->data.gla;
  #ifndef DEDICATED
 			//
 			// figure out whether we should be using a custom shader for this model
@@ -1772,8 +1778,8 @@ void R_AddGhoulSurfaces( trRefEntity_t *ent ) {
 
 				// construct a list of all bones used by this model - this makes the bone transform go a bit faster since it will dump out bones
 				// that aren't being used. - NOTE this will screw up any models that have surfaces turned off where the lower surfaces aren't.
-				boneUsedList = (int *)Z_Malloc(animModel->mdxa->numBones * 4, TAG_GHOUL2, qtrue);
-				memset(boneUsedList, 0, (animModel->mdxa->numBones * 4));
+				boneUsedList = (int *)Z_Malloc(animModel->data.gla->numBones * 4, TAG_GHOUL2, qtrue);
+				memset(boneUsedList, 0, (animModel->data.gla->numBones * 4));
 
 				CConstructBoneList	CBL(ghoul2[i].mSurfaceRoot,
 					boneUsedList,
@@ -1790,11 +1796,11 @@ void R_AddGhoulSurfaces( trRefEntity_t *ent ) {
 					boneUsedList[0] =1;
 				}
 
-				if (ghoul2[i].mTempBoneList.size() != (size_t)animModel->mdxa->numBones+1)
+				if (ghoul2[i].mTempBoneList.size() != (size_t)animModel->data.gla->numBones+1)
 				{
-					ghoul2[i].mTempBoneList.resize(animModel->mdxa->numBones+1);
+					ghoul2[i].mTempBoneList.resize(animModel->data.gla->numBones+1);
 					int k;
-					for (k=0;k<animModel->mdxa->numBones;k++)
+					for (k=0;k<animModel->data.gla->numBones;k++)
 					{
 						ghoul2[i].mTempBoneList[k].first=-10000; //reset it to an invalid time
 					}
@@ -1828,11 +1834,11 @@ void R_AddGhoulSurfaces( trRefEntity_t *ent ) {
 					oldBones=ghoul2[i].mTempBoneList;
 				}
 				// pre-transform all the bones of this model
-				G2_TransformGhoulBones( aHeader, boneUsedList, ghoul2[i].mBlist, ghoul2[i].mTempBoneList, ghoul2[i].mBltlist, rootMatrix, ghoul2[i], tr.refdef.time, animModel->mdxa->numBones);
+				G2_TransformGhoulBones( aHeader, boneUsedList, ghoul2[i].mBlist, ghoul2[i].mTempBoneList, ghoul2[i].mBltlist, rootMatrix, ghoul2[i], tr.refdef.time, animModel->data.gla->numBones);
 				if (oldBones.size())
 				{
 					int b;
-					for (b=0;b<animModel->mdxa->numBones;b++)
+					for (b=0;b<animModel->data.gla->numBones;b++)
 					{
 						if (r_Ghoul2AnimSmooth&&r_Ghoul2AnimSmooth->value>0.005f&&r_Ghoul2AnimSmooth->value<0.995f)
 						{
@@ -1855,7 +1861,7 @@ void R_AddGhoulSurfaces( trRefEntity_t *ent ) {
 				{
 					mdxaSkelOffsets_t *offsets = (mdxaSkelOffsets_t *)((byte *)aHeader + sizeof(mdxaHeader_t));
 					int b;
-					for (b=0;b<animModel->mdxa->numBones;b++)
+					for (b=0;b<animModel->data.gla->numBones;b++)
 					{
 						if (!boneUsedList)
 						{
@@ -1979,7 +1985,7 @@ void G2_ConstructGhoulSkeleton( CGhoul2Info_v &ghoul2, const int frameNum, const
 
 	modelList = (int*)Z_Malloc((int)ghoul2.size() * 4, TAG_GHOUL2, qtrue);
 	// order sort the ghoul 2 models so bolt ons get bolted to the right model
-	G2_Sort_Models(ghoul2, modelList, &modelCount);
+	G2_Sort_Models(ghoul2, modelList, ARRAY_LEN(modelList), &modelCount);
 
 	// walk each possible model for this entity and try rendering it out
 	for (j=0; j<modelCount; j++)
@@ -2005,15 +2011,15 @@ void G2_ConstructGhoulSkeleton( CGhoul2Info_v &ghoul2, const int frameNum, const
 				char *psFilename = ghoul2[i].mFileName;
 				currentModel = R_GetModelByHandle(RE_RegisterModel(psFilename));
 			}
-			animModel =  R_GetModelByHandle(currentModel->mdxm->animIndex);
-			aHeader = animModel->mdxa;
+			animModel =  R_GetModelByHandle(currentModel->data.glm->header->animIndex);
+			aHeader = animModel->data.gla;
 
 			ghoul2[i].mSkelFrameNum = frameNum;
 
 			// construct a list of all bones used by this model - this makes the bone transform go a bit faster since it will dump out bones
 			// that aren't being used. - NOTE this will screw up any models that have surfaces turned off where the lower surfaces aren't.
-			boneUsedList = (int *)Z_Malloc(animModel->mdxa->numBones * 4, TAG_GHOUL2, qtrue);
-			memset(boneUsedList, 0, (animModel->mdxa->numBones * 4));
+			boneUsedList = (int *)Z_Malloc(animModel->data.gla->numBones * 4, TAG_GHOUL2, qtrue);
+			memset(boneUsedList, 0, (animModel->data.gla->numBones * 4));
 
 			CConstructBoneList	CBL(
 			ghoul2[i].mSurfaceRoot,
@@ -2031,11 +2037,11 @@ void G2_ConstructGhoulSkeleton( CGhoul2Info_v &ghoul2, const int frameNum, const
 				boneUsedList[0] =1;
 			}
 
-			if (ghoul2[i].mTempBoneList.size() != (size_t)animModel->mdxa->numBones+1)
+			if (ghoul2[i].mTempBoneList.size() != (size_t)animModel->data.gla->numBones+1)
 			{
-				ghoul2[i].mTempBoneList.resize(animModel->mdxa->numBones+1);
+				ghoul2[i].mTempBoneList.resize(animModel->data.gla->numBones+1);
 				int k;
-				for (k=0;k<animModel->mdxa->numBones;k++)
+				for (k=0;k<animModel->data.gla->numBones;k++)
 				{
 					ghoul2[i].mTempBoneList[k].first=-10000; //reset it to an invalid time
 				}
@@ -2070,12 +2076,12 @@ void G2_ConstructGhoulSkeleton( CGhoul2Info_v &ghoul2, const int frameNum, const
 				oldBones=ghoul2[i].mTempBoneList;
 			}
 			// pre-transform all the bones of this model
-			G2_TransformGhoulBones( aHeader, boneUsedList, ghoul2[i].mBlist, ghoul2[i].mTempBoneList, ghoul2[i].mBltlist, rootMatrix, ghoul2[i], frameNum, animModel->mdxa->numBones);
+			G2_TransformGhoulBones( aHeader, boneUsedList, ghoul2[i].mBlist, ghoul2[i].mTempBoneList, ghoul2[i].mBltlist, rootMatrix, ghoul2[i], frameNum, animModel->data.gla->numBones);
 
 			if (oldBones.size())
 			{
 				int b;
-				for (b=0;b<animModel->mdxa->numBones;b++)
+				for (b=0;b<animModel->data.gla->numBones;b++)
 				{
 					if (r_Ghoul2AnimSmooth&&r_Ghoul2AnimSmooth->value>0.005f&&r_Ghoul2AnimSmooth->value<0.995f)
 					{
@@ -2098,7 +2104,7 @@ void G2_ConstructGhoulSkeleton( CGhoul2Info_v &ghoul2, const int frameNum, const
 			{
 				mdxaSkelOffsets_t *offsets = (mdxaSkelOffsets_t *)((byte *)aHeader + sizeof(mdxaHeader_t));
 				int b;
-				for (b=0;b<animModel->mdxa->numBones;b++)
+				for (b=0;b<animModel->data.gla->numBones;b++)
 				{
 					if (!boneUsedList)
 					{
@@ -2691,8 +2697,9 @@ qboolean R_LoadMDXM( model_t *mod, void *buffer, const char *mod_name, qboolean 
 	mod->dataSize += size;
 
 	qboolean bAlreadyFound = qfalse;
-	mdxm = mod->mdxm = (mdxmHeader_t*) //ri.Hunk_Alloc( size );
-										RE_RegisterModels_Malloc(size, pinmodel, mod_name, &bAlreadyFound, TAG_MODEL_GLM);
+	mdxm = (mdxmHeader_t*)RE_RegisterModels_Malloc(size, mod_name, &bAlreadyFound, TAG_MODEL_GLM);
+	mod->data.glm = (mdxmData_t *)ri.Hunk_Alloc (sizeof (mdxmData_t), h_low);
+	mod->data.glm->header = mdxm;
 
 	assert(bAlreadyCached == bAlreadyFound);	// I should probably eliminate 'bAlreadyFound', but wtf?
 
@@ -2882,8 +2889,8 @@ qboolean R_LoadMDXA( model_t *mod, void *buffer, const char *mod_name, qboolean 
 	mod->dataSize  += size;
 
 	qboolean bAlreadyFound = qfalse;
-	mdxa = mod->mdxa = (mdxaHeader_t*) //ri.Hunk_Alloc( size );
-										RE_RegisterModels_Malloc(size, pinmodel,mod_name, &bAlreadyFound, TAG_MODEL_GLA);
+	mdxa = mod->data.gla = (mdxaHeader_t*) //ri.Hunk_Alloc( size );
+										RE_RegisterModels_Malloc(size, mod_name, &bAlreadyFound, TAG_MODEL_GLA);
 
 	assert(bAlreadyCached == bAlreadyFound);	// I should probably eliminate 'bAlreadyFound', but wtf?
 

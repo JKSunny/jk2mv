@@ -73,9 +73,10 @@ int G2_IsSurfaceLegal(void *mod, const char *surfaceName, int *flags)
 	// damn include file dependancies
 	mdxmSurfHierarchy_t	*surf;
 	model_t *mod_m = (model_t *)mod;
-	surf = (mdxmSurfHierarchy_t *) ( (byte *)mod_m->mdxm + mod_m->mdxm->ofsSurfHierarchy );
+	mdxmHeader_t *mdxm = mod_m->data.glm->header;
+	surf = (mdxmSurfHierarchy_t *) ( (byte *)mdxm + mdxm->ofsSurfHierarchy );
 
-	for ( int i = 0 ; i < mod_m->mdxm->numSurfaces ; i++)
+	for ( int i = 0 ; i < mdxm->numSurfaces ; i++)
 	{
 		if (!Q_stricmp(surfaceName, surf->name))
 		{
@@ -107,11 +108,11 @@ mdxmSurface_t *G2_FindSurface(const char *fileName, surfaceInfo_v &slist, const 
 	int						i = 0;
 	// find the model we want
 	model_t				*mod = R_GetModelByHandle(RE_RegisterModel(fileName));
-	mdxmHierarchyOffsets_t *surfIndexes = (mdxmHierarchyOffsets_t *)((byte *)mod->mdxm + sizeof(mdxmHeader_t));
+	mdxmHierarchyOffsets_t *surfIndexes = (mdxmHierarchyOffsets_t *)((byte *)mod->data.glm->header + sizeof(mdxmHeader_t));
 	mdxmSurfHierarchy_t	*surfInfo;
 
 	// did we find a ghoul 2 model or not?
-	if (!mod->mdxm)
+	if (!mod->data.glm || !mod->data.glm->header)
 	{
 		assert(0);
 		if (surfIndex)
@@ -160,7 +161,7 @@ qboolean G2_SetSurfaceOnOff (const char *fileName, surfaceInfo_v &slist, const c
 	model_t				*mod = R_GetModelByHandle(RE_RegisterModel(fileName));
 
 	// did we find a ghoul 2 model or not?
-	if (!mod->mdxm)
+	if (!mod->data.glm || !mod->data.glm->header)
 	{
 		assert(0);
 		return qfalse;
@@ -203,9 +204,10 @@ int G2_IsSurfaceOff (const char *fileName, surfaceInfo_v &slist, const char *sur
 	model_t				*mod = R_GetModelByHandle(RE_RegisterModel(fileName));
 	int					surfIndex = -1;
 	mdxmSurface_t		*surf = 0;
+	mdxmHeader_t *mdxm = mod->data.glm->header;
 
 	// did we find a ghoul 2 model or not?
-	if (!mod->mdxm)
+	if (!mdxm)
 	{
 		return 0;
 	}
@@ -219,9 +221,9 @@ int G2_IsSurfaceOff (const char *fileName, surfaceInfo_v &slist, const char *sur
 	}
 	// ok, we didn't find it in the surface list. Lets look at the original surface then.
 
-	mdxmSurfHierarchy_t	*surface = (mdxmSurfHierarchy_t *) ( (byte *)mod->mdxm + mod->mdxm->ofsSurfHierarchy );
+	mdxmSurfHierarchy_t	*surface = (mdxmSurfHierarchy_t *) ( (byte *)mdxm + mdxm->ofsSurfHierarchy );
 
-	for ( int i = 0 ; i < mod->mdxm->numSurfaces ; i++)
+	for ( int i = 0 ; i < mdxm->numSurfaces ; i++)
 	{
 	 	if (!Q_stricmp(surfaceName, surface->name))
 	 	{
@@ -239,7 +241,7 @@ void G2_FindRecursiveSurface(model_t *currentModel, int surfaceNum, surfaceInfo_
 {
 	int						i;
  	mdxmSurface_t			*surface = (mdxmSurface_t *)G2_FindSurface((void *)currentModel, surfaceNum, 0);
-	mdxmHierarchyOffsets_t	*surfIndexes = (mdxmHierarchyOffsets_t *)((byte *)currentModel->mdxm + sizeof(mdxmHeader_t));
+	mdxmHierarchyOffsets_t	*surfIndexes = (mdxmHierarchyOffsets_t *)((byte *)currentModel->data.glm->header + sizeof(mdxmHeader_t));
 	mdxmSurfHierarchy_t		*surfInfo = (mdxmSurfHierarchy_t *)((byte *)surfIndexes + surfIndexes->offsets[surface->thisSurfaceIndex]);
 
 	// see if we have an override surface in the surface list
@@ -307,13 +309,16 @@ void G2_RemoveRedundantGeneratedSurfaces(surfaceInfo_v &slist, int *activeSurfac
 qboolean G2_SetRootSurface(g2handle_t g2h, CGhoul2Info_v &ghoul2, const int modelIndex, const char *surfaceName)
 {
 	model_t				*mod_m = R_GetModelByHandle(RE_RegisterModel(ghoul2[modelIndex].mFileName));
-	model_t				*mod_a = R_GetModelByHandle(mod_m->mdxm->animIndex);
+	mdxmHeader_t		*mdxm = mod_m->data.glm->header;
+	model_t				*mod_a = R_GetModelByHandle(mdxm->animIndex);
+	mdxaHeader_t		*mdxa = mod_a->data.gla;
+
 	int					surf;
 	int					flags;
 	int					*activeSurfaces, *activeBones;
 
 	// did we find a ghoul 2 model or not?
-	if (!mod_m->mdxm)
+	if (!mdxm)
 	{
 		return qfalse;
 	}
@@ -335,10 +340,10 @@ qboolean G2_SetRootSurface(g2handle_t g2h, CGhoul2Info_v &ghoul2, const int mode
 		// firstly, generate a list of active / on surfaces below the root point
 
 		// gimme some space to put this list into
-		activeSurfaces = (int *)Z_Malloc(mod_m->mdxm->numSurfaces * 4, TAG_GHOUL2, qtrue);
-		memset(activeSurfaces, 0, (mod_m->mdxm->numSurfaces * 4));
-		activeBones = (int *)Z_Malloc(mod_a->mdxa->numBones * 4, TAG_GHOUL2, qtrue);
-		memset(activeBones, 0, (mod_a->mdxa->numBones * 4));
+		activeSurfaces = (int *)Z_Malloc(mdxm->numSurfaces * 4, TAG_GHOUL2, qtrue);
+		memset(activeSurfaces, 0, (mdxm->numSurfaces * 4));
+		activeBones = (int *)Z_Malloc(mdxa->numBones * 4, TAG_GHOUL2, qtrue);
+		memset(activeBones, 0, (mdxa->numBones * 4));
 
 		G2_FindRecursiveSurface(mod_m, surf, ghoul2[modelIndex].mSlist, activeSurfaces);
 
@@ -557,7 +562,7 @@ int G2_GetParentSurface(const char *fileName, const int index)
 {
 	model_t					*mod = R_GetModelByHandle(RE_RegisterModel(fileName));
 	mdxmSurface_t			*surf = 0;
-	mdxmHierarchyOffsets_t	*surfIndexes = (mdxmHierarchyOffsets_t *)((byte *)mod->mdxm + sizeof(mdxmHeader_t));
+	mdxmHierarchyOffsets_t	*surfIndexes = (mdxmHierarchyOffsets_t *)((byte *)mod->data.glm->header + sizeof(mdxmHeader_t));
 	mdxmSurfHierarchy_t		*surfInfo = 0;
 
 	// walk each surface and see if this index is listed in it's children
@@ -586,12 +591,12 @@ int G2_IsSurfaceRendered(const char *fileName, const char *surfaceName, surfaceI
 	int					parentFlags = 0;
 	int					surfNum = 0;
 	int					parentSurfNum = 0;
-	mdxmHierarchyOffsets_t	*surfIndexes = (mdxmHierarchyOffsets_t *)((byte *)mod->mdxm + sizeof(mdxmHeader_t));
+	mdxmHierarchyOffsets_t	*surfIndexes = (mdxmHierarchyOffsets_t *)((byte *)mod->data.glm->header + sizeof(mdxmHeader_t));
 	mdxmSurfHierarchy_t		*surfInfo = 0;
 	mdxmSurfHierarchy_t		*parentSurfInfo = 0;
 
 	// did we find a ghoul 2 model or not?
-	if (!mod->mdxm)
+	if (!mod->data.glm || !mod->data.glm->header)
 	{
 		return 0;
 	}

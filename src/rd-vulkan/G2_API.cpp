@@ -970,7 +970,7 @@ void G2API_SetGhoul2ModelIndexes(g2handle_t g2h, qhandle_t *modelList, qhandle_t
 char *G2API_GetAnimFileNameIndex(qhandle_t modelIndex)
 {
 	model_t		*mod_m = R_GetModelByHandle(modelIndex);
-	return mod_m->mdxm->animName;
+	return mod_m->data.glm->header->animName;
 }
 
 /************************************************************************************************
@@ -1236,11 +1236,21 @@ char *G2API_GetSurfaceName(CGhoul2Info *ghlInfo, int surfNumber)
 	model_t	*mod = R_GetModelByHandle(RE_RegisterModel(ghlInfo->mFileName));
 	mdxmSurface_t		*surf = 0;
 	mdxmSurfHierarchy_t	*surfInfo = 0;
+	mdxmHeader_t *mdxm;
+
+#ifndef FINAL_BUILD
+	if (!mod || !mod->data.glm || !mod->data.glm->header)
+	{
+		Com_Error(ERR_DROP, "G2API_GetSurfaceName: Bad model on instance %s.", ghlInfo->mFileName);
+	}
+#endif
+
+	mdxm = mod->data.glm->header;
 
 	surf = (mdxmSurface_t *)G2_FindSurface((void *)mod, surfNumber, 0);
 	if (surf)
 	{
-		mdxmHierarchyOffsets_t	*surfIndexes = (mdxmHierarchyOffsets_t *)((byte *)mod->mdxm + sizeof(mdxmHeader_t));
+		mdxmHierarchyOffsets_t	*surfIndexes = (mdxmHierarchyOffsets_t *)((byte *)mdxm + sizeof(mdxmHeader_t));
 		surfInfo = (mdxmSurfHierarchy_t *)((byte *)surfIndexes + surfIndexes->offsets[surf->thisSurfaceIndex]);
 		return surfInfo->name;
 	}
@@ -1265,7 +1275,7 @@ char *G2API_GetGLAName(g2handle_t g2h, int modelIndex)
 	if (ghoul2 && (unsigned)modelIndex < ghoul2->size())
 	{
 		model_t	*mod = R_GetModelByHandle(RE_RegisterModel((*ghoul2)[modelIndex].mFileName));
-		return mod->mdxm->animName;
+		return mod->data.glm->header->animName;
 	}
 	return NULL;
 }

@@ -124,7 +124,8 @@ int G2_Add_Bolt_Surf_Num(const char *fileName, boltInfo_v &bltlist, surfaceInfo_
 int G2_Add_Bolt(const char *fileName, boltInfo_v &bltlist, surfaceInfo_v &slist, const char *boneName)
 {
 	model_t		*mod_m = R_GetModelByHandle(RE_RegisterModel(fileName));
-	model_t		*mod_a = R_GetModelByHandle(mod_m->mdxm->animIndex);
+	mdxmHeader_t *mdxm = mod_m->data.glm->header;
+	model_t		*mod_a = R_GetModelByHandle(mdxm->animIndex);
 	int					x, surfNum = -1;
 	mdxaSkel_t			*skel;
 	mdxaSkelOffsets_t	*offsets;
@@ -132,7 +133,7 @@ int G2_Add_Bolt(const char *fileName, boltInfo_v &bltlist, surfaceInfo_v &slist,
 	boltInfo_t			tempBolt;
 	int					flags;
 
-	surfOffsets = (mdxmHierarchyOffsets_t *)((byte*)mod_m->mdxm + sizeof(mdxmHeader_t));
+	surfOffsets = (mdxmHierarchyOffsets_t *)((byte*)mdxm + sizeof(mdxmHeader_t));
 	// first up, we'll search for that which this bolt names in all the surfaces
 	surfNum = G2_IsSurfaceLegal((void*)mod_m, boneName, &flags);
 
@@ -176,12 +177,13 @@ int G2_Add_Bolt(const char *fileName, boltInfo_v &bltlist, surfaceInfo_v &slist,
 
 	// no, check to see if it's a bone then
 
-   	offsets = (mdxaSkelOffsets_t *)((byte *)mod_a->mdxa + sizeof(mdxaHeader_t));
+	mdxaHeader_t *mdxa = mod_a->data.gla;
+   	offsets = (mdxaSkelOffsets_t *)((byte *)mdxa + sizeof(mdxaHeader_t));
 
  	// walk the entire list of bones in the gla file for this model and see if any match the name of the bone we want to find
- 	for (x=0; x< mod_a->mdxa->numBones; x++)
+ 	for (x=0; x< mdxa->numBones; x++)
  	{
- 		skel = (mdxaSkel_t *)((byte *)mod_a->mdxa + sizeof(mdxaHeader_t) + offsets->offsets[x]);
+ 		skel = (mdxaSkel_t *)((byte *)mdxa + sizeof(mdxaHeader_t) + offsets->offsets[x]);
  		// if name is the same, we found it
  		if (!Q_stricmp(skel->name, boneName))
 		{
@@ -190,7 +192,7 @@ int G2_Add_Bolt(const char *fileName, boltInfo_v &bltlist, surfaceInfo_v &slist,
 	}
 
 	// check to see we did actually make a match with a bone in the model
-	if (x == mod_a->mdxa->numBones)
+	if (x == mdxa->numBones)
 	{
 		// didn't find it? Error
 		assert(0&&x == mod_a->mdxa->numBones);

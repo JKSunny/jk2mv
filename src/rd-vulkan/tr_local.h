@@ -30,9 +30,15 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 	#define USE_JK2_SHADER_TEXTURE_MODE
 	#define USE_JK2_CONSOLE_FONT
 #endif
-
-
 #define USE_VBO					// store static world geometry in VBO
+
+#ifdef USE_VBO
+	#define MAX_VBOS      4096
+
+	#define USE_VBO_GHOUL2
+	#define USE_VBO_MDV	
+#endif
+
 #define USE_FOG_ONLY
 #define USE_FOG_COLLAPSE		// not compatible with legacy dlights
 #if defined ( USE_VBO ) && !defined( USE_FOG_ONLY )
@@ -46,6 +52,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 	
 #define MAX_TEXTURE_SIZE		2048 // must be less or equal to 32768
 #define MAX_TEXTURE_UNITS		8
+
+#define USE_BUFFER_CLEAR		/* clear attachments on render pass begin */
 
 #include "qcommon/qfiles.h"
 #include "rd-common/tr_public.h"
@@ -63,6 +71,18 @@ typedef enum {
 	CT_BACK_SIDED,
 	CT_TWO_SIDED
 } cullType_t;
+
+#ifdef USE_JK2
+//
+// in Jedi Academy this lives in "rd-common/tr_types.h"
+//
+#define	REFENTITYNUM_BITS	11		// can't be increased without changing drawsurf bit packing
+#define	REFENTITYNUM_MASK	((1<<REFENTITYNUM_BITS) - 1)
+// the last N-bit number (2^REFENTITYNUM_BITS - 1) is reserved for the special world refentity,
+//  and this is reflected by the value of MAX_REFENTITIES (which therefore is not a power-of-2)
+#define	MAX_REFENTITIES		((1<<REFENTITYNUM_BITS) - 1)
+#define	REFENTITYNUM_WORLD	((1<<REFENTITYNUM_BITS) - 1)
+#endif
 
 // Vulkan
 #include "vk_local.h"
@@ -115,6 +135,8 @@ typedef enum {
 #define GL_COMPRESSED_RGB_S3TC_DXT1_EXT		0x83F0
 #define GL_COMPRESSED_RGBA_S3TC_DXT5_EXT	0x83F3
 
+typedef void GLvoid;
+typedef int GLsizei;
 typedef unsigned int glIndex_t;
 
 #define LL(x) x=LittleLong(x)
@@ -135,16 +157,6 @@ typedef unsigned int glIndex_t;
 // in Jedi Academy this lives in "qcommon/qcommon.h"
 //
 #define AVI_LINE_PADDING 4	// AVI files have the start of pixel lines 4 byte-aligned
-
-//
-// in Jedi Academy this lives in "rd-common/tr_types.h"
-//
-#define	REFENTITYNUM_BITS	11		// can't be increased without changing drawsurf bit packing
-#define	REFENTITYNUM_MASK	((1<<REFENTITYNUM_BITS) - 1)
-// the last N-bit number (2^REFENTITYNUM_BITS - 1) is reserved for the special world refentity,
-//  and this is reflected by the value of MAX_REFENTITIES (which therefore is not a power-of-2)
-#define	MAX_REFENTITIES		((1<<REFENTITYNUM_BITS) - 1)
-#define	REFENTITYNUM_WORLD	((1<<REFENTITYNUM_BITS) - 1)
 
 extern int	skyboxportal;
 extern int	drawskyboxportal;
@@ -212,7 +224,8 @@ typedef struct trRefEntity_s {
 
 	float		axisLength;		// compensate for non-normalized axis
 	qboolean	lightingCalculated;
-	vec3_t		lightDir;		// normalized direction towards light
+	vec3_t		lightDir;			// normalized direction towards light, original
+	vec3_t		modelLightDir;  // normalized direction towards light, in model space
 	vec3_t		ambientLight;	// color normalized to 0-255
 	int			ambientLightInt;	// 32 bit rgba packed
 	vec3_t		directedLight;
@@ -228,6 +241,7 @@ typedef struct orientationr_s {
 	vec3_t		origin;			// in world coordinates
 	matrix3_t	axis;		// orientation in world
 	vec3_t		viewOrigin;		// viewParms->or.origin in local coordinates
+	float		modelViewMatrix[16];
 	float		modelMatrix[16];
 } orientationr_t;
 
@@ -299,8 +313,38 @@ typedef struct image_s {
 #ifdef USE_JK2_SHADER_TEXTURE_MODE	
 	const					textureMode_t *textureMode;	// NULL = follow r_texturemode
 #endif
-
 } image_t;
+
+typedef struct VBO_s
+{	
+	int				index;
+
+	VkBuffer		buffer;
+	VkDeviceMemory	memory;
+
+	uint32_t		offsets[12];
+
+	int				size;
+	void			*mapped;
+	struct {
+		VkBuffer		buffer;
+		VkDeviceMemory	memory;
+	} staging;
+} VBO_t;
+
+typedef struct IBO_s
+{
+	VkBuffer		buffer;
+	VkDeviceMemory	memory;
+
+	int				size;
+	void			*mapped;
+
+	struct {
+		VkBuffer		buffer;
+		VkDeviceMemory	memory;
+	} staging;	
+} IBO_t;
 
 //===============================================================================
 
@@ -360,6 +404,7 @@ typedef enum {
 	DEFORM_WAVE,
 	DEFORM_NORMALS,
 	DEFORM_BULGE,
+	DEFORM_BULGE_UNIFORM,
 	DEFORM_MOVE,
 	DEFORM_PROJECTION_SHADOW,
 	DEFORM_AUTOSPRITE,
@@ -371,7 +416,8 @@ typedef enum {
 	DEFORM_TEXT4,
 	DEFORM_TEXT5,
 	DEFORM_TEXT6,
-	DEFORM_TEXT7
+	DEFORM_TEXT7,
+	DEFORM_DISINTEGRATION
 } deform_t;
 
 typedef enum {
@@ -405,6 +451,8 @@ typedef enum {
 	CGEN_FOG,				// standard fog
 	CGEN_CONST,				// fixed color
 	CGEN_LIGHTMAPSTYLE,
+	CGEN_DISINTEGRATION_1,
+	CGEN_DISINTEGRATION_2
 } colorGen_t;
 
 typedef enum {
@@ -533,10 +581,11 @@ typedef struct textureBundle_s {
 
 	qboolean		isLightmap;
 	qboolean		isVideoMap;
-	qboolean		isScreenMap;
+	unsigned int 	isScreenMap : 1;
+	unsigned int 	dlight : 1;
 
 	int				videoMapHandle;
-	bool			glow;
+	bool glow;
 } textureBundle_t;
 
 
@@ -547,7 +596,7 @@ typedef struct shaderStage_s {
 	bool			isDetail;
 
 	byte			index;						// index of stage
-	byte			lightmapStyle;
+	byte			lightmapStyle[2];
 
 	textureBundle_t	bundle[NUM_TEXTURE_BUNDLES];
 
@@ -564,6 +613,7 @@ typedef struct shaderStage_s {
 
 	// Whether this object emits a glow or not.
 	bool			glow;
+
 
 	uint32_t		vk_pipeline[2];
 	uint32_t		vk_2d_pipeline;
@@ -847,27 +897,21 @@ SURFACES
 ==============================================================================
 */
 // any changes in surfaceType must be mirrored in rb_surfaceTable[]
-typedef enum {
+typedef enum surfaceType_e {
 	SF_BAD,
 	SF_SKIP,				// ignore
 	SF_FACE,
 	SF_GRID,
 	SF_TRIANGLES,
 	SF_POLY,
-	SF_MD3,
-/*
-Ghoul2 Insert Start
-*/
+	SF_MDV,
 	SF_MDX,
-/*
-Ghoul2 Insert End
-*/
 	SF_FLARE,
 	SF_ENTITY,				// beams, rails, lightning, etc that can be determined by entity
-	SF_DISPLAY_LIST,
+	SF_VBO_MDVMESH,
 
 	SF_NUM_SURFACE_TYPES,
-	SF_MAX = 0xffffffff			// ensures that sizeof( surfaceType_t ) == sizeof( int )
+	SF_MAX = 0x7fffffff				// ensures that sizeof( surfaceType_t ) == sizeof( int )
 } surfaceType_t;
 
 typedef struct drawSurf_s {
@@ -915,6 +959,7 @@ typedef struct srfFlare_s {
 #define	VERTEXSIZE			( 6 + ( MAXLIGHTMAPS * 3 ) )
 #define	VERTEX_COLOR		( 5 + ( MAXLIGHTMAPS * 2 ) )
 #define	VERTEX_FINAL_COLOR	( 5 + ( MAXLIGHTMAPS * 3 ) )
+
 
 typedef struct srfGridMesh_s {
 	surfaceType_t	surfaceType;
@@ -1102,6 +1147,132 @@ typedef struct world_s {
 
 //======================================================================
 
+/*
+==============================================================================
+MDV MODELS - meta format for vertex animation models like .md2, .md3, .mdc
+==============================================================================
+*/
+typedef struct
+{
+	float           bounds[2][3];
+	float           localOrigin[3];
+	float           radius;
+} mdvFrame_t;
+
+typedef struct
+{
+	float           origin[3];
+	float           axis[3][3];
+} mdvTag_t;
+
+typedef struct
+{
+	char            name[MAX_QPATH];	// tag name
+} mdvTagName_t;
+
+typedef struct
+{
+	vec3_t          xyz;
+	vec3_t          normal;
+	vec3_t          tangent;
+	vec3_t          bitangent;
+} mdvVertex_t;
+
+typedef struct
+{
+	float           st[2];
+} mdvSt_t;
+
+typedef struct mdvSurface_s
+{
+	surfaceType_t   surfaceType;
+
+	char            name[MAX_QPATH];	// polyset name
+
+	int             numShaderIndexes;
+	int				*shaderIndexes;
+
+	int             numVerts;
+	mdvVertex_t    *verts;
+	mdvSt_t        *st;
+
+	int             numIndexes;
+	glIndex_t      *indexes;
+
+	struct mdvModel_s *model;
+} mdvSurface_t;
+
+typedef struct srfVBOMDVMesh_s
+{
+	surfaceType_t   surfaceType;
+
+	struct mdvModel_s *mdvModel;
+	struct mdvSurface_s *mdvSurface;
+
+	// backEnd stats
+	int				indexOffset;
+	int             numIndexes;
+	int             numVerts;
+	glIndex_t       minIndex;
+	glIndex_t       maxIndex;
+
+	// static render data
+	VBO_t          *vbo;
+	IBO_t          *ibo;
+} srfVBOMDVMesh_t;
+
+typedef struct mdvModel_s
+{
+	int             numFrames;
+	mdvFrame_t     *frames;
+
+	int             numTags;
+	mdvTag_t       *tags;
+	mdvTagName_t   *tagNames;
+
+	int             numSurfaces;
+	mdvSurface_t   *surfaces;
+
+	int             numVBOSurfaces;
+	srfVBOMDVMesh_t  *vboSurfaces;
+
+	int             numSkins;
+} mdvModel_t;
+
+#ifdef USE_VBO_GHOUL2
+typedef struct mdxmVBOMesh_s
+{
+	surfaceType_t surfaceType;
+
+	int indexOffset;
+	int minIndex;
+	int maxIndex;
+	int numIndexes;
+	int numVertexes;
+
+	VBO_t *vbo;
+	IBO_t *ibo;
+} mdxmVBOMesh_t;
+
+typedef struct mdxmVBOModel_s
+{
+	int numVBOMeshes;
+	mdxmVBOMesh_t *vboMeshes;
+
+	VBO_t *vbo;
+	IBO_t *ibo;
+} mdxmVBOModel_t;
+#endif
+
+typedef struct mdxmData_s
+{
+	mdxmHeader_t	*header;
+#ifdef USE_VBO_GHOUL2
+	mdxmVBOModel_t	*vboModels;
+#endif
+} mdxmData_t;
+
+
 typedef enum {
 	MOD_BAD,
 	MOD_BRUSH,
@@ -1123,16 +1294,15 @@ typedef struct model_s {
 	int			index;				// model = tr.models[model->mod_index]
 
 	int			dataSize;			// just for listing purposes
-	bmodel_t	*bmodel;			// only if type == MOD_BRUSH
-	md3Header_t	*md3[MD3_MAX_LODS];	// only if type == MOD_MESH
-/*
-Ghoul2 Insert Start
-*/
-	mdxmHeader_t *mdxm;				// only if type == MOD_GL2M which is a GHOUL II Mesh file NOT a GHOUL II animation file
-	mdxaHeader_t *mdxa;				// only if type == MOD_GL2A which is a GHOUL II Animation file
-/*
-Ghoul2 Insert End
-*/
+
+	struct // union presents issues with glm world models like weapons ..
+	{
+		bmodel_t		*bmodel;			// type == MOD_BRUSH
+		mdvModel_t		*mdv[MD3_MAX_LODS];	// type == MOD_MESH
+		mdxmData_t		*glm;				// type == MOD_MDXM which is a GHOUL II Mesh file NOT a GHOUL II animation file
+		mdxaHeader_t	*gla;				// type == MOD_MDXA which is a GHOUL II Animation file
+	} data;
+
 	unsigned char	numLods;
 	bool			bspInstance;			// model is a bsp instance
 } model_t;
@@ -1450,6 +1620,12 @@ typedef struct trGlobals_s {
 	world_t					bspModels[MAX_SUB_BSP];
 	int						numBSPModels;
 
+	int						numVBOs;
+	VBO_t					*vbos[4069];
+
+	int						numIBOs;
+	IBO_t					*ibos[4069];
+
 	// shader indexes from other modules will be looked up in tr.shaders[]
 	// shader indexes from drawsurfs will be looked up in sortedShaders[]
 	// lower indexed sortedShaders must be rendered first (opaque surfaces before translucent)
@@ -1488,7 +1664,7 @@ typedef struct trGlobals_s {
 	int						lastRenderCommand;
 	int						numFogs; // read before parsing shaders
 
-	vec4_t					*fastskyColor;
+	vec4_t					clearColor;
 } trGlobals_t;
 
 struct glconfigExt_t
@@ -1774,7 +1950,11 @@ void		RE_RegisterMedia_LevelLoadBegin( const char *psMapName, ForceReload_e eFor
 void		RE_RegisterMedia_LevelLoadEnd( void );
 int			RE_RegisterMedia_GetLevel( void );
 qboolean	RE_RegisterModels_LevelLoadEnd( qboolean bDeleteEverythingNotUsedThisLevel = qfalse );
-void*		RE_RegisterModels_Malloc( int iSize, void *pvDiskBufferIfJustLoaded, const char *psModelFileName, qboolean *pqbAlreadyFound, memtag_t eTag );
+#ifdef USE_JK2
+void		*RE_RegisterModels_Malloc( int iSize, const char *psModelFileName, qboolean *pqbAlreadyFound, memtag_t eTag );
+#else
+void		*RE_RegisterModels_Malloc( int iSize, void *pvDiskBufferIfJustLoaded, const char *psModelFileName, qboolean *pqbAlreadyFound, memtag_t eTag );
+#endif
 void		RE_RegisterModels_StoreShaderRequest( const char *psModelFileName, const char *psShaderName, int *piShaderIndexPoke );
 void		RE_RegisterModels_Info_f( void );
 qboolean	RE_RegisterImages_LevelLoadEnd( void );
@@ -1815,6 +1995,7 @@ float		R_SumOfUsedImages( qboolean bUseFormat );
 void		R_InitSkins( void );
 skin_t		*R_GetSkinByHandle( qhandle_t hSkin );
 const void	*RB_TakeVideoFrameCmd( const void *data );
+float		R_ClampDenorm( float v );
 void		RE_HunkClearCrap( void );
 
 //
@@ -1869,7 +2050,8 @@ typedef struct stageVars
     vec2_t      *texcoordPtr[NUM_TEXTURE_BUNDLES];
 } stageVars_t;
 
-#define	NUM_TEX_COORDS		( MAXLIGHTMAPS + 1 )
+#define	NUM_TEX_COORDS				( MAXLIGHTMAPS + 1 )
+#define MAX_MULTIDRAW_PRIMITIVES	16384
 
 struct shaderCommands_s
 {
@@ -1884,9 +2066,11 @@ struct shaderCommands_s
 
 #ifdef USE_VBO
 	surfaceType_t	surfType;
-	int				vboIndex;
+	int				vbo_world_index; // world item index
+	int				vbo_model_index; // ghoul2/mdv item index
 	int				vboStage;
 	qboolean		allowVBO;
+	
 #endif
 
 	shader_t		*shader;
@@ -1894,6 +2078,16 @@ struct shaderCommands_s
 	int				fogNum;
 	int				numIndexes;
 	int				numVertexes;
+
+	glIndex_t	minIndex;
+	glIndex_t	maxIndex;
+
+	int			multiDrawPrimitives;
+	GLsizei		multiDrawNumIndexes[MAX_MULTIDRAW_PRIMITIVES];
+	glIndex_t	*multiDrawFirstIndex[MAX_MULTIDRAW_PRIMITIVES];
+	glIndex_t	*multiDrawLastIndex[MAX_MULTIDRAW_PRIMITIVES];
+	glIndex_t	multiDrawMinIndex[MAX_MULTIDRAW_PRIMITIVES];
+	glIndex_t	multiDrawMaxIndex[MAX_MULTIDRAW_PRIMITIVES];
 
 #ifdef USE_PMLIGHT
 	const dlight_t	*light;
@@ -2068,11 +2262,17 @@ class CRenderableSurface
 public:
 	const int		ident;			// ident of this surface - required so the materials renderer knows what sort of surface this refers to
 	void			*boneList;		// pointer to transformed bone list for this surface - required client side for rendering DONOT USE IN GAME	SIDE
+#ifdef USE_VBO_GHOUL2
+	mdxmVBOMesh_t	*vboMesh;
+#endif
 	mdxmSurface_t	*surfaceData;	// pointer to surface data loaded into file - only used by client renderer DO NOT USE IN GAME SIDE - if there is a vid restart this will be out of wack on the game
 
 CRenderableSurface():
 	ident(SF_MDX),
 	boneList(0),
+#ifdef USE_VBO_GHOUL2
+	vboMesh(nullptr),
+#endif
 	surfaceData(0)
 	{}
 };
@@ -2086,10 +2286,12 @@ Ghoul2 Insert End
 =============================================================
 =============================================================
 */
-void	R_TransformModelToClip( const vec3_t src, const float *modelMatrix, const float *projectionMatrix,
+void	R_TransformModelToClip( const vec3_t src, const float *modelViewMatrix, const float *projectionMatrix,
 							vec4_t eye, vec4_t dst );
 void	R_TransformClipToWindow( const vec4_t clip, const viewParms_t *view, vec4_t normalized, vec4_t window );
-
+#ifdef USE_VBO_GHOUL2
+qboolean ShaderRequiresCPUDeforms( const shader_t *shader );
+#endif
 void	RB_DeformTessGeometry( void );
 void	RB_CalcEnvironmentTexCoords( float *dstTexCoords );
 void	RB_CalcFogTexCoords( float *dstTexCoords );
@@ -2104,6 +2306,8 @@ void	RB_CalcModulateAlphasByFog( unsigned char *dstColors );
 void	RB_CalcModulateRGBAsByFog( unsigned char *dstColors );
 void	RB_CalcWaveAlpha( const waveForm_t *wf, unsigned char *dstColors );
 void	RB_CalcWaveColor( const waveForm_t *wf, unsigned char *dstColors );
+float	RB_CalcWaveColorSingle( const waveForm_t *wf );
+float	RB_CalcWaveAlphaSingle( const waveForm_t *wf );
 void	RB_CalcAlphaFromEntity( unsigned char *dstColors );
 void	RB_CalcAlphaFromOneMinusEntity( unsigned char *dstColors );
 void	RB_CalcColorFromEntity( unsigned char *dstColors );
@@ -2259,16 +2463,16 @@ void RE_SwapBuffers( int *frontEndMsec, int *backEndMsec );
 void R_LoadImage( const char *name, byte **pic, int *width, int *height );
 
 #else
-
 void RE_SetColor( const float *rgba );
-void RE_StretchPic ( float x, float y, float w, float h,
+void RE_StretchPic( float x, float y, float w, float h,
 					  float s1, float t1, float s2, float t2, qhandle_t hShader );
-void RE_RotatePic ( float x, float y, float w, float h,
+void RE_RotatePic( float x, float y, float w, float h,
 					  float s1, float t1, float s2, float t2,float a, qhandle_t hShader );
-void RE_RotatePic2 ( float x, float y, float w, float h,
+void RE_RotatePic2( float x, float y, float w, float h,
 					  float s1, float t1, float s2, float t2,float a, qhandle_t hShader );
-void RE_BeginFrame( stereoFrame_t stereoFrame ) {
+void RE_BeginFrame( stereoFrame_t stereoFrame );
 void RE_EndFrame( int *frontEndMsec, int *backEndMsec );
+void RE_TakeVideoFrame( int width, int height, byte *captureBuffer, byte *encodeBuffer, qboolean motionJpeg );
 #endif
 
 void RE_TakeVideoFrame( int width, int height, byte *captureBuffer, byte *encodeBuffer, qboolean motionJpeg );
@@ -2291,7 +2495,7 @@ void			ResetGhoul2RenderableSurfaceHeap( void );
 #endif
 
 void			RE_InsertModelIntoHash( const char *name, model_t *mod );
-
+void			ResetGhoul2RenderableSurfaceHeap( void );
 /*
 Ghoul2 Insert End
 */
@@ -2361,10 +2565,17 @@ char		*GenerateImageMappingName( const char *name );
 void		R_Add_AllocatedImage( image_t *image );
 
 void		vk_bind( image_t *image );
+void		vk_flush_staging_buffer( qboolean final );
+void		vk_alloc_staging_buffer( VkDeviceSize size );
 void		vk_upload_image( image_t *image, byte *pic );
 void		vk_upload_image_data( image_t *image, int x, int y, int width, int height, int mipmaps, byte *pixels, int size, qboolean update ) ;
 void		vk_generate_image_upload_data( image_t *image, byte *data, Image_Upload_Data *upload_data );
 void		vk_create_image( image_t *image, int width, int height, int mip_levels );
+void		vk_clean_staging_buffer( void );
+
+// ghoul2
+void		RB_TransformBones( const trRefEntity_t *ent, const trRefdef_t *refdef );
+int			RB_GetBoneUboOffset( CRenderableSurface *surf );
 
 static QINLINE unsigned int log2pad(unsigned int v, int roundup)
 {
@@ -2387,6 +2598,8 @@ void		ComputeTexCoords( const int b, const textureBundle_t *bundle );
 #ifdef USE_VBO
 // VBO functions
 extern void R_BuildWorldVBO( msurface_t *surf, int surfCount );
+extern void R_BuildMDXM( model_t *mod, mdxmHeader_t *mdxm );
+extern void R_BuildMD3( model_t *mod, mdvModel_t *mdvModel );
 
 extern void VBO_PushData( int itemIndex, shaderCommands_t *input );
 extern void VBO_UnBind( void );

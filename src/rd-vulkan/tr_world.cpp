@@ -600,7 +600,7 @@ void R_AddBrushModelSurfaces ( trRefEntity_t *ent ) {
 
 	pModel = R_GetModelByHandle( ent->e.hModel );
 
-	bmodel = pModel->bmodel;
+	bmodel = pModel->data.bmodel;
 
 	clip = R_CullLocalBox( bmodel->bounds );
 	if ( clip == CULL_OUT ) {
@@ -666,7 +666,7 @@ void RE_GetBModelVerts( int bmodelIndex, vec3_t *verts, vec3_t normal )
 	float				dot1, dot2;
 
 	pModel = R_GetModelByHandle( bmodelIndex );
-	bmodel = pModel->bmodel;
+	bmodel = pModel->data.bmodel;
 
 	// Loop through all surfaces on the brush and find the best two candidates
 	for ( i = 0 ; i < bmodel->numSurfaces; i++ )
