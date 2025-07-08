@@ -515,10 +515,10 @@ void vk_initialize( void )
 		vk.fboActive = qtrue;		
 
 #ifdef USE_VBO
-	if ( r_vbo->integer && r_vbo->integer <= 2 )
+	if ( r_vbo->integer )
 		vk.vboWorldActive = qtrue;
 
-	if ( r_vbo->integer >= 2 ) {
+	if ( r_vbo_models->integer ) {
 #if 0 // bonecache not implemented in JK2
 		vk.vboGhoul2Active = qtrue;
 #endif
