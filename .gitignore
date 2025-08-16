@@ -31,6 +31,7 @@
 out/
 .vs/
 *.bat
+!src/rd-vulkan/**/*.bat
 
 # Visual C++ cache files
 ipch/
