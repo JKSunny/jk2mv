@@ -1318,6 +1318,10 @@ image_t *R_CreateImage( const char *name, byte *pic, int width, int height, imgF
 		image->flags &= ~(IMGFLAG_PICMIP);
 	}
 
+    image->handle = VK_NULL_HANDLE;
+    image->view = VK_NULL_HANDLE;
+    image->descriptor_set = VK_NULL_HANDLE;
+
 #ifdef USE_JK2_SHADER_TEXTURE_MODE
     image->textureMode = textureMode;
 #endif

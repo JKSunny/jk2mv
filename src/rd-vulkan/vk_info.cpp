@@ -456,7 +456,6 @@ void vk_info_f( void ) {
 
     if ( vbo_models_mode )
         ri.Printf( PRINT_ALL, ", num buffers: %i \n", tr.numVBOs );
-
 #endif
 #else
     ri.Printf(PRINT_ALL, "vk_info statistics are not enabled in this build.\n");

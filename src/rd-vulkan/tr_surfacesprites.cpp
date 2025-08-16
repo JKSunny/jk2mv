@@ -804,13 +804,13 @@ static void RB_DrawVerticalSurfaceSprites(const shaderStage_t *stage, const ss_i
 						{
 							RB_VerticalSurfaceSpriteWindPoint(curpoint, width, height, (byte)light, (byte)(alpha * 255.0),
 								stage->ss->wind, stage->ss->windIdle, fogv, stage->ss->facing, skew,
-								winddiffv, windforce, SURFSPRITE_FLATTENED == stage->ss->surfaceSpriteType);
+								winddiffv, windforce, SURFSPRITE_FLATTENED == stage->ss->type);
 						}
 						else
 						{
 							RB_VerticalSurfaceSpriteWindPoint(curpoint, width, height, (byte)light, (byte)(alpha * 255.0),
 								stage->ss->wind, stage->ss->windIdle, NULL, stage->ss->facing, skew,
-								winddiffv, windforce, SURFSPRITE_FLATTENED == stage->ss->surfaceSpriteType);
+								winddiffv, windforce, SURFSPRITE_FLATTENED == stage->ss->type);
 						}
 					}
 					else
@@ -818,12 +818,12 @@ static void RB_DrawVerticalSurfaceSprites(const shaderStage_t *stage, const ss_i
 						if (SSUsingFog)
 						{
 							RB_VerticalSurfaceSprite(curpoint, width, height, (byte)light, (byte)(alpha * 255.0),
-								stage->ss->wind, stage->ss->windIdle, fogv, stage->ss->facing, skew, SURFSPRITE_FLATTENED == stage->ss->surfaceSpriteType);
+								stage->ss->wind, stage->ss->windIdle, fogv, stage->ss->facing, skew, SURFSPRITE_FLATTENED == stage->ss->type);
 						}
 						else
 						{
 							RB_VerticalSurfaceSprite(curpoint, width, height, (byte)light, (byte)(alpha * 255.0),
-								stage->ss->wind, stage->ss->windIdle, NULL, stage->ss->facing, skew, SURFSPRITE_FLATTENED == stage->ss->surfaceSpriteType);
+								stage->ss->wind, stage->ss->windIdle, NULL, stage->ss->facing, skew, SURFSPRITE_FLATTENED == stage->ss->type);
 						}
 					}
 
@@ -1248,7 +1248,7 @@ static void RB_DrawEffectSurfaceSprites(const shaderStage_t *stage, const ss_inp
 		fadeinout = qtrue;
 	}
 
-	if (stage->ss->surfaceSpriteType == SURFSPRITE_WEATHERFX)
+	if (stage->ss->type == SURFSPRITE_WEATHERFX)
 	{	// This effect is affected by weather settings.
 		if (curWeatherAmount < 0.01)
 		{	// Don't show these effects
@@ -1488,7 +1488,7 @@ void RB_DrawSurfaceSprites(const shaderStage_t *stage, const ss_input *input)
 		ssLastEntityDrawn = backEnd.currentEntity;
 	}
 
-	switch (stage->ss->surfaceSpriteType)
+	switch (stage->ss->type)
 	{
 	case SURFSPRITE_FLATTENED:
 	case SURFSPRITE_VERTICAL:
