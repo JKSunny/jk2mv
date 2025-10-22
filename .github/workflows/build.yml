@@ -19,7 +19,7 @@ jobs:
         arch: [Win32]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
         fetch-depth: 0
@@ -40,12 +40,12 @@ jobs:
       shell: cmd
       run: msbuild /m /p:Configuration=${{ matrix.build_type }} PACKAGE.vcxproj
 
-    #- uses: 'actions/upload-artifact@v3'
+    #- uses: 'actions/upload-artifact@v4'
     #  with:
     #    name: Windows Binaries (Installer), ${{ matrix.build_type }}, ${{ matrix.arch }}
     #    path: ${{github.workspace}}/build/actions/out/${{ matrix.build_type }}/*
 
-    - uses: 'actions/upload-artifact@v3'
+    - uses: 'actions/upload-artifact@v4'
       with:
         name: Windows Package (Installer), ${{ matrix.build_type }}, ${{ matrix.arch }}
         path: ${{github.workspace}}/build/actions/out/*.exe
@@ -83,7 +83,7 @@ jobs:
         arch: [Win32, x64]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
         fetch-depth: 0
@@ -104,12 +104,12 @@ jobs:
       shell: cmd
       run: msbuild /m /p:Configuration=${{ matrix.build_type }} PACKAGE.vcxproj
 
-    #- uses: 'actions/upload-artifact@v3'
+    #- uses: 'actions/upload-artifact@v4'
     #  with:
     #    name: Windows Binaries (Portable), ${{ matrix.build_type }}, ${{ matrix.arch }}
     #    path: ${{github.workspace}}/build/actions/out/${{ matrix.build_type }}/*
 
-    - uses: 'actions/upload-artifact@v3'
+    - uses: 'actions/upload-artifact@v4'
       if: ${{ matrix.build_type == 'RelWithDebInfo' }}
       with:
         name: Windows Package (Portable), ${{ matrix.build_type }}, ${{ matrix.arch }}
