@@ -2599,7 +2599,6 @@ void CL_ShutdownRef( qboolean restarting ) {
 
 	if ( rendererLib != NULL ) {
 		Sys_UnloadDll (rendererLib);
-		//Sys_UnloadModuleLibrary?
 		rendererLib = NULL;
 	}
 }
