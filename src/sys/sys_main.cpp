@@ -77,7 +77,7 @@ static char *last_strstr(const char *haystack, const char *needle)
 }
 #endif // MACOS_X
 
-#if !defined(MACOS_X) && defined(INSTALLED)
+#if !defined(MACOS_X) && !defined(_WIN32) && defined(INSTALLED)
 #include <unistd.h>
 
 char *Sys_LinuxGetInstallPrefix() {
@@ -123,7 +123,7 @@ char *Sys_DefaultInstallPath(void)
 
         override[5] = 0;
         return path;
-#elif !defined(MACOS_X) && defined(INSTALLED)
+#elif !defined(MACOS_X) && !defined(_WIN32) && defined(INSTALLED)
         static char path[MAX_OSPATH];
 
         Com_sprintf(path, sizeof(path), "%s/share/jk2mv", Sys_LinuxGetInstallPrefix());

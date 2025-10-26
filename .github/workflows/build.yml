@@ -313,9 +313,9 @@ jobs:
       shell: bash
       run: |
         if [ "${{ matrix.portable }}" == "Portable" ]; then
-          OPTIONS="-DUseInternalLibs=ON -DBuildPortableVersion=ON"
+          OPTIONS="-DCMAKE_CXX_STANDARD=14 -DUseInternalLibs=ON -DBuildPortableVersion=ON"
         else
-          OPTIONS="-DUseInternalLibs=OFF -DBuildPortableVersion=OFF"
+          OPTIONS="-DCMAKE_CXX_STANDARD=14 -DUseInternalLibs=OFF -DBuildPortableVersion=OFF"
         fi
         [[ "${{ matrix.container_image}}" == i386* ]] && OPTIONS="$OPTIONS -DSystemProcessor=i386"
         echo "OPTIONS=$OPTIONS" >> $GITHUB_OUTPUT
