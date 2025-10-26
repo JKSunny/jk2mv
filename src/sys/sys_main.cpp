@@ -342,10 +342,10 @@ Used to load a module (jk2mpgame, cgame, ui) dll
 =================
 */
 void *Sys_LoadModuleLibrary(const char *name, qboolean mvOverride, VM_EntryPoint_t *entryPoint, intptr_t(QDECL *systemcalls)(intptr_t, ...)) {
-	HMODULE	libHandle;
+	void	*libHandle = NULL;
 	void	(QDECL *dllEntry)(intptr_t(QDECL *syscallptr)(intptr_t, ...));
 	const char	*path, *filePath;
-	char	filename[MAX_QPATH];
+	char	filename[MAX_OSPATH];
 
 	Com_sprintf(filename, sizeof(filename), "%s_" ARCH_STRING "." LIBRARY_EXTENSION, name);
 
@@ -354,14 +354,14 @@ void *Sys_LoadModuleLibrary(const char *name, qboolean mvOverride, VM_EntryPoint
 		filePath = FS_BuildOSPath(path, NULL, filename);
 
 		Com_DPrintf("Loading module: %s...", filePath);
-		libHandle = LoadLibraryA(filePath);
+		libHandle = Sys_LoadLibrary(filePath);
 		if (!libHandle) {
 			Com_DPrintf(" failed!\n");
 			path = Cvar_VariableString("fs_homepath");
 			filePath = FS_BuildOSPath(path, NULL, filename);
 
 			Com_DPrintf("Loading module: %s...", filePath);
-			libHandle = LoadLibraryA(filePath);
+			libHandle = Sys_LoadLibrary(filePath);
 			if (!libHandle) {
 				Com_DPrintf(" failed!\n");
 				return NULL;
@@ -372,12 +372,12 @@ void *Sys_LoadModuleLibrary(const char *name, qboolean mvOverride, VM_EntryPoint
 			Com_DPrintf(" success!\n");
 		}
 	} else {
-		char dllPath[MAX_PATH];
+		char dllPath[MAX_OSPATH];
 		path = Cvar_VariableString("fs_basepath");
 		Com_sprintf(dllPath, sizeof(dllPath), "%s\\%s", path, filename);
 
 		Com_DPrintf("Loading module: %s...", dllPath);
-		libHandle = LoadLibraryA(dllPath);
+		libHandle = Sys_LoadLibrary(dllPath);
 		if (!libHandle) {
 			Com_DPrintf(" failed!\n");
 			return NULL;
@@ -386,18 +386,18 @@ void *Sys_LoadModuleLibrary(const char *name, qboolean mvOverride, VM_EntryPoint
 		}
 	}
 
-	dllEntry = (void (QDECL *)(intptr_t(QDECL *)(intptr_t, ...)))GetProcAddress(libHandle, "dllEntry");
-	*entryPoint = (VM_EntryPoint_t)GetProcAddress(libHandle, "vmMain");
+	dllEntry = (void (QDECL *)(intptr_t(QDECL *)(intptr_t, ...)))Sys_LoadFunction( libHandle, "dllEntry" );
+	*entryPoint = (VM_EntryPoint_t)Sys_LoadFunction( libHandle, "vmMain" );
 
 	if (!*entryPoint) {
 		Com_DPrintf("Could not find vmMain in %s\n", filename);
-		FreeLibrary(libHandle);
+		Sys_UnloadLibrary(libHandle);
 		return NULL;
 	}
 
 	if (!dllEntry) {
 		Com_DPrintf("Could not find dllEntry in %s\n", filename);
-		FreeLibrary(libHandle);
+		Sys_UnloadLibrary(libHandle);
 		return NULL;
 	}
 
