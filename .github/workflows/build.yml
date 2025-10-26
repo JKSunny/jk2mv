@@ -298,7 +298,7 @@ jobs:
     strategy:
       matrix:
         #container_image: ["ubuntu:16.04", "i386/ubuntu:16.04"]
-        container_image: ["ubuntu:22.04", "i386/ubuntu:22.04"]
+        container_image: ["ubuntu:22.04", "i386/ubuntu:18.04"]
         build_type: [Debug, Release]
         portable: [Portable, Non-Portable]
 
