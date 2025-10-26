@@ -240,22 +240,6 @@ time_t Sys_FileTime(const char *path) {
 	return buf.st_mtime;
 }
 
-
-/*
-=================
-Sys_UnloadModuleLibrary
-=================
-*/
-void Sys_UnloadModuleLibrary(void *dllHandle) {
-	if (!dllHandle) {
-		return;
-	}
-
-	if (!FreeLibrary((HMODULE)dllHandle)) {
-		Com_Error(ERR_FATAL, "Sys_UnloadDll FreeLibrary failed");
-	}
-}
-
 /*
 =================
 Sys_UnloadDll
