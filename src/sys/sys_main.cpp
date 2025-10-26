@@ -22,6 +22,10 @@
 #include "../sys/sys_public.h"
 #include "con_local.h"
 
+#ifdef MACOS_X
+#include <mach-o/dyld.h>
+#endif
+
 static char binaryPath[ MAX_OSPATH ] = { 0 };
 static char installPath[ MAX_OSPATH ] = { 0 };
 
