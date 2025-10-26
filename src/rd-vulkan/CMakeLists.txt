@@ -123,6 +123,8 @@ if (BuildMVMP)
 	source_group("ghoul2" FILES ${MPVulkanRendererGhoul2Files})
 	set(MPVulkanRendererFiles ${MPVulkanRendererFiles} ${MPVulkanRendererGhoul2Files})
 
+	set(MPVulkanRendererIncludeDirectories ${MPVulkanRendererIncludeDirectories} "${MPDir}/ghoul2")
+
 	#set(MPVulkanRendererOtherFiles
 	#	"../../mv_setup.h"
 	#)
