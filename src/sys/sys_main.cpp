@@ -58,12 +58,78 @@ void Sys_SetDefaultInstallPath(const char *path)
 Sys_DefaultInstallPath
 =================
 */
+#if defined(MACOS_X)
+static char *last_strstr(const char *haystack, const char *needle)
+{
+    if (*needle == '\0')
+        return (char *) haystack;
+
+    char *result = NULL;
+    for (;;) {
+        char *p = (char *)strstr(haystack, needle);
+        if (p == NULL)
+            break;
+        result = p;
+        haystack = p + 1;
+    }
+
+    return result;
+}
+#endif // MACOS_X
+
+#if !defined(MACOS_X) && defined(INSTALLED)
+char *Sys_LinuxGetInstallPrefix() {
+    static char path[MAX_OSPATH];
+    int i;
+
+    readlink("/proc/self/exe", path, sizeof(path));
+
+    // from: /usr/local/bin/jk2mvmp
+    // to: /usr/local
+    for (i = 0; i < 2; i++) {
+        char *l = strrchr(path, '/');
+        if (!l) {
+            break;
+        }
+
+        *l = 0;
+    }
+
+    return path;
+}
+#endif
+
 char *Sys_DefaultInstallPath(void)
 {
-	if (*installPath)
-		return installPath;
-	else
+    if (*installPath) {
+        return installPath;
+    } else {
+#if defined(MACOS_X) && defined(INSTALLED)
+        // Inside the app...
+        static char path[MAX_OSPATH];
+        char *override;
+
+        uint32_t size = sizeof(path);
+        if (_NSGetExecutablePath(path, &size)) {
+            return Sys_Cwd();
+        }
+
+        override = last_strstr(path, "MacOS");
+        if (!override) {
+            return Sys_Cwd();
+        }
+
+        override[5] = 0;
+        return path;
+#elif !defined(MACOS_X) && defined(INSTALLED)
+        static char path[MAX_OSPATH];
+
+        Com_sprintf(path, sizeof(path), "%s/share/jk2mv", Sys_LinuxGetInstallPrefix());
+        return path;
+#else
 		return Sys_Cwd();
+#endif
+    }
 }
 
 /*
