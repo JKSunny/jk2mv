@@ -376,6 +376,25 @@ char *Sys_DefaultAssetsPath() {
 
 // Try to find assets from /Applications (Appstore JKA) or Steam.
 // If neither worked try to find them in the same directory the jk2mv app is in.
+#if defined(MACOS_X)
+static char *last_strstr(const char *haystack, const char *needle)
+{
+    if (*needle == '\0')
+        return (char *) haystack;
+
+    char *result = NULL;
+    for (;;) {
+        char *p = (char *)strstr(haystack, needle);
+        if (p == NULL)
+            break;
+        result = p;
+        haystack = p + 1;
+    }
+
+    return result;
+}
+#endif // MACOS_X
+
 char *Sys_DefaultAssetsPathJKA() {
 #if defined(MACOS_X) && defined(INSTALLED)
     static char path[MAX_OSPATH];
