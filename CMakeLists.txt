@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.1...3.31)
+set(CMAKE_OSX_DEPLOYMENT_TARGET "10.9" CACHE STRING "Minimum OS X deployment version")
 
 # For checks in subdirectories
 set(InMV TRUE)
