@@ -78,6 +78,8 @@ static char *last_strstr(const char *haystack, const char *needle)
 #endif // MACOS_X
 
 #if !defined(MACOS_X) && defined(INSTALLED)
+#include <unistd.h>
+
 char *Sys_LinuxGetInstallPrefix() {
     static char path[MAX_OSPATH];
     int i;
