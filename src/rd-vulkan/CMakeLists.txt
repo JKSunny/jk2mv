@@ -205,7 +205,7 @@ if (BuildMVMP)
 	)
 
 	set_target_properties(${MPVulkanRenderer} PROPERTIES C_STANDARD 90)
-	set_target_properties(${MPVulkanRenderer} PROPERTIES INCLUDE_DIRECTORIES "${MPVulkanRendererIncludeDirectories}")
+	target_include_directories(${MPVulkanRenderer} PRIVATE ${MPVulkanRendererIncludeDirectories})
 	set_target_properties(${MPVulkanRenderer} PROPERTIES PROJECT_LABEL "jk2mv rd-vulkan")
 	target_link_libraries(${MPVulkanRenderer} ${MPVulkanRendererLibraries})
 
