@@ -22,6 +22,10 @@
 #include "../sys/sys_public.h"
 #include "con_local.h"
 
+#ifdef MACOS_X
+#include <mach-o/dyld.h>
+#endif
+
 static char binaryPath[ MAX_OSPATH ] = { 0 };
 static char installPath[ MAX_OSPATH ] = { 0 };
 
@@ -58,12 +62,80 @@ void Sys_SetDefaultInstallPath(const char *path)
 Sys_DefaultInstallPath
 =================
 */
+#if defined(MACOS_X)
+static char *last_strstr(const char *haystack, const char *needle)
+{
+    if (*needle == '\0')
+        return (char *) haystack;
+
+    char *result = NULL;
+    for (;;) {
+        char *p = (char *)strstr(haystack, needle);
+        if (p == NULL)
+            break;
+        result = p;
+        haystack = p + 1;
+    }
+
+    return result;
+}
+#endif // MACOS_X
+
+#if !defined(MACOS_X) && !defined(_WIN32) && defined(INSTALLED)
+#include <unistd.h>
+
+char *Sys_LinuxGetInstallPrefix() {
+    static char path[MAX_OSPATH];
+    int i;
+
+    readlink("/proc/self/exe", path, sizeof(path));
+
+    // from: /usr/local/bin/jk2mvmp
+    // to: /usr/local
+    for (i = 0; i < 2; i++) {
+        char *l = strrchr(path, '/');
+        if (!l) {
+            break;
+        }
+
+        *l = 0;
+    }
+
+    return path;
+}
+#endif
+
 char *Sys_DefaultInstallPath(void)
 {
-	if (*installPath)
-		return installPath;
-	else
+    if (*installPath) {
+        return installPath;
+    } else {
+#if defined(MACOS_X) && defined(INSTALLED)
+        // Inside the app...
+        static char path[MAX_OSPATH];
+        char *override;
+
+        uint32_t size = sizeof(path);
+        if (_NSGetExecutablePath(path, &size)) {
+            return Sys_Cwd();
+        }
+
+        override = last_strstr(path, "MacOS");
+        if (!override) {
+            return Sys_Cwd();
+        }
+
+        override[5] = 0;
+        return path;
+#elif !defined(MACOS_X) && !defined(_WIN32) && defined(INSTALLED)
+        static char path[MAX_OSPATH];
+
+        Com_sprintf(path, sizeof(path), "%s/share/jk2mv", Sys_LinuxGetInstallPrefix());
+        return path;
+#else
 		return Sys_Cwd();
+#endif
+    }
 }
 
 /*
@@ -240,22 +312,6 @@ time_t Sys_FileTime(const char *path) {
 	return buf.st_mtime;
 }
 
-
-/*
-=================
-Sys_UnloadModuleLibrary
-=================
-*/
-void Sys_UnloadModuleLibrary(void *dllHandle) {
-	if (!dllHandle) {
-		return;
-	}
-
-	if (!FreeLibrary((HMODULE)dllHandle)) {
-		Com_Error(ERR_FATAL, "Sys_UnloadDll FreeLibrary failed");
-	}
-}
-
 /*
 =================
 Sys_UnloadDll
@@ -342,10 +398,10 @@ Used to load a module (jk2mpgame, cgame, ui) dll
 =================
 */
 void *Sys_LoadModuleLibrary(const char *name, qboolean mvOverride, VM_EntryPoint_t *entryPoint, intptr_t(QDECL *systemcalls)(intptr_t, ...)) {
-	HMODULE	libHandle;
+	void	*libHandle = NULL;
 	void	(QDECL *dllEntry)(intptr_t(QDECL *syscallptr)(intptr_t, ...));
 	const char	*path, *filePath;
-	char	filename[MAX_QPATH];
+	char	filename[MAX_OSPATH];
 
 	Com_sprintf(filename, sizeof(filename), "%s_" ARCH_STRING "." LIBRARY_EXTENSION, name);
 
@@ -354,14 +410,14 @@ void *Sys_LoadModuleLibrary(const char *name, qboolean mvOverride, VM_EntryPoint
 		filePath = FS_BuildOSPath(path, NULL, filename);
 
 		Com_DPrintf("Loading module: %s...", filePath);
-		libHandle = LoadLibraryA(filePath);
+		libHandle = Sys_LoadLibrary(filePath);
 		if (!libHandle) {
 			Com_DPrintf(" failed!\n");
 			path = Cvar_VariableString("fs_homepath");
 			filePath = FS_BuildOSPath(path, NULL, filename);
 
 			Com_DPrintf("Loading module: %s...", filePath);
-			libHandle = LoadLibraryA(filePath);
+			libHandle = Sys_LoadLibrary(filePath);
 			if (!libHandle) {
 				Com_DPrintf(" failed!\n");
 				return NULL;
@@ -372,12 +428,12 @@ void *Sys_LoadModuleLibrary(const char *name, qboolean mvOverride, VM_EntryPoint
 			Com_DPrintf(" success!\n");
 		}
 	} else {
-		char dllPath[MAX_PATH];
+		char dllPath[MAX_OSPATH];
 		path = Cvar_VariableString("fs_basepath");
 		Com_sprintf(dllPath, sizeof(dllPath), "%s\\%s", path, filename);
 
 		Com_DPrintf("Loading module: %s...", dllPath);
-		libHandle = LoadLibraryA(dllPath);
+		libHandle = Sys_LoadLibrary(dllPath);
 		if (!libHandle) {
 			Com_DPrintf(" failed!\n");
 			return NULL;
@@ -386,18 +442,18 @@ void *Sys_LoadModuleLibrary(const char *name, qboolean mvOverride, VM_EntryPoint
 		}
 	}
 
-	dllEntry = (void (QDECL *)(intptr_t(QDECL *)(intptr_t, ...)))GetProcAddress(libHandle, "dllEntry");
-	*entryPoint = (VM_EntryPoint_t)GetProcAddress(libHandle, "vmMain");
+	dllEntry = (void (QDECL *)(intptr_t(QDECL *)(intptr_t, ...)))Sys_LoadFunction( libHandle, "dllEntry" );
+	*entryPoint = (VM_EntryPoint_t)Sys_LoadFunction( libHandle, "vmMain" );
 
 	if (!*entryPoint) {
 		Com_DPrintf("Could not find vmMain in %s\n", filename);
-		FreeLibrary(libHandle);
+		Sys_UnloadLibrary(libHandle);
 		return NULL;
 	}
 
 	if (!dllEntry) {
 		Com_DPrintf("Could not find dllEntry in %s\n", filename);
-		FreeLibrary(libHandle);
+		Sys_UnloadLibrary(libHandle);
 		return NULL;
 	}
 
