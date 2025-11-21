@@ -3,9 +3,13 @@ name: Build
 on:
   workflow_dispatch:
   push:
-    branches: master
+    branches:
+      - master
+      - cicd-update
   pull_request:
-    branches: master
+    branches:
+      - master
+      - cicd-update
   release:
     types: [created]
 
@@ -19,7 +23,7 @@ jobs:
         arch: [Win32]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
         fetch-depth: 0
@@ -40,12 +44,12 @@ jobs:
       shell: cmd
       run: msbuild /m /p:Configuration=${{ matrix.build_type }} PACKAGE.vcxproj
 
-    #- uses: 'actions/upload-artifact@v3'
+    #- uses: 'actions/upload-artifact@v4'
     #  with:
     #    name: Windows Binaries (Installer), ${{ matrix.build_type }}, ${{ matrix.arch }}
     #    path: ${{github.workspace}}/build/actions/out/${{ matrix.build_type }}/*
 
-    - uses: 'actions/upload-artifact@v3'
+    - uses: 'actions/upload-artifact@v4'
       with:
         name: Windows Package (Installer), ${{ matrix.build_type }}, ${{ matrix.arch }}
         path: ${{github.workspace}}/build/actions/out/*.exe
@@ -83,7 +87,7 @@ jobs:
         arch: [Win32, x64]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
         fetch-depth: 0
@@ -104,12 +108,12 @@ jobs:
       shell: cmd
       run: msbuild /m /p:Configuration=${{ matrix.build_type }} PACKAGE.vcxproj
 
-    #- uses: 'actions/upload-artifact@v3'
+    #- uses: 'actions/upload-artifact@v4'
     #  with:
     #    name: Windows Binaries (Portable), ${{ matrix.build_type }}, ${{ matrix.arch }}
     #    path: ${{github.workspace}}/build/actions/out/${{ matrix.build_type }}/*
 
-    - uses: 'actions/upload-artifact@v3'
+    - uses: 'actions/upload-artifact@v4'
       if: ${{ matrix.build_type == 'RelWithDebInfo' }}
       with:
         name: Windows Package (Portable), ${{ matrix.build_type }}, ${{ matrix.arch }}
@@ -139,80 +143,9 @@ jobs:
             }
           }
 
-  vs2019_xp:
-    name: Build VS 2019 (Portable - WinXP), ${{ matrix.build_type }}, ${{ matrix.arch }}
-    runs-on: windows-2019
-    strategy:
-      matrix:
-        build_type: [Debug, RelWithDebInfo]
-        arch: [Win32]
-
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        submodules: true
-        fetch-depth: 0
-
-    - name: Install WinXP Toolset
-      shell: powershell
-      run: |
-        Set-Location "C:\Program Files (x86)\Microsoft Visual Studio\Installer\"
-        Start-Process -FilePath vs_installer.exe -ArgumentList "modify", "--installPath", "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise", "--add Microsoft.VisualStudio.Component.WinXP", "--quiet", "--norestart", "--nocache" -Wait -PassThru -WindowStyle Hidden
-
-    - name: Add msbuild to PATH
-      uses: microsoft/setup-msbuild@v1.1
-
-    - name: Create Build Environment
-      run: cmake -E make_directory ${{github.workspace}}/build/actions
-
-    - name: Configure CMake
-      shell: bash
-      working-directory: ${{github.workspace}}/build/actions
-      run: cmake $GITHUB_WORKSPACE -A ${{ matrix.arch }} -T v141_xp -DBuildPortableVersion=ON
-
-    - name: Build
-      working-directory: ${{github.workspace}}/build/actions
-      shell: cmd
-      run: msbuild /m /p:Configuration=${{ matrix.build_type }} PACKAGE.vcxproj
-
-    #- uses: 'actions/upload-artifact@v3'
-    #  with:
-    #    name: Windows Binaries (Portable - WinXP), ${{ matrix.build_type }}, ${{ matrix.arch }}
-    #    path: ${{github.workspace}}/build/actions/out/${{ matrix.build_type }}/*
-
-    - uses: 'actions/upload-artifact@v3'
-      if: ${{ matrix.build_type == 'RelWithDebInfo' }}
-      with:
-        name: Windows Package (Portable - WinXP), ${{ matrix.build_type }}, ${{ matrix.arch }}
-        path: ${{github.workspace}}/build/actions/out/*.zip
-
-    # As actions/upload-release-asset seems to demand exact filenames and content types we use a script instead
-    - name: Upload Release
-      if: ${{ github.event_name == 'release' && matrix.build_type == 'RelWithDebInfo' }}
-      uses: actions/github-script@v6
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const fs = require('fs').promises;
-          for ( let filename of await fs.readdir(String.raw`${{github.workspace}}/build/actions/out/`) )
-          {
-            if ( filename.endsWith('.zip') )
-            {
-              await github.rest.repos.uploadReleaseAsset(
-                {
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  release_id: ${{ github.event.release.id }},
-                  name: filename.split('.').slice(0, -1).join('.') + "-winxp.zip",
-                  data: await fs.readFile( String.raw`${{github.workspace}}/build/actions/out/` + filename )
-                }
-              );
-            }
-          }
-
   macos:
     name: Build macOS (${{ matrix.portable }}), ${{ matrix.build_type }}, ${{ matrix.arch }}
-    runs-on: macos-12
+    runs-on: macos-13
     strategy:
       matrix:
         build_type: [Debug, Release]
@@ -220,10 +153,23 @@ jobs:
         arch: [x86_64]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
         fetch-depth: 0
+
+    - name: Patch mvsdk CMake version
+      if: always()
+      shell: bash
+      run: |
+        FILE="${{ github.workspace }}/src/mvsdk/CMakeLists.txt"
+        if [ -f "$FILE" ]; then
+          # Replace first line that starts with cmake_minimum_required
+          sed -i '' '1s/.*/cmake_minimum_required(VERSION 3.1...3.31)/' "$FILE"
+          echo "Patched mvsdk CMakeLists.txt"
+        else
+          echo "mvsdk CMakeLists.txt not found!"
+        fi
 
     - name: Set CMake parameters
       id: cmakeargs
@@ -243,7 +189,7 @@ jobs:
     - name: Configure CMake
       shell: bash
       working-directory: ${{github.workspace}}/build/actions
-      run: cmake -G "Unix Makefiles" -DUseInternalLibs=ON ${{ steps.cmakeargs.outputs.PORTABLE }} -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} $GITHUB_WORKSPACE
+      run: cmake -G "Unix Makefiles" -DCMAKE_CXX_STANDARD=14 -DUseInternalLibs=ON ${{ steps.cmakeargs.outputs.PORTABLE }} -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} $GITHUB_WORKSPACE
 
     - name: Build
       working-directory: ${{github.workspace}}/build/actions
@@ -255,12 +201,12 @@ jobs:
       shell: bash
       run: make package
 
-    #- uses: 'actions/upload-artifact@v3'
+    #- uses: 'actions/upload-artifact@v4'
     #  with:
     #    name: macOS Binaries (${{ matrix.portable }}), ${{ matrix.build_type }}, ${{ matrix.arch }}
     #    path: ${{github.workspace}}/build/actions/out/${{ matrix.build_type }}/*
 
-    - uses: 'actions/upload-artifact@v3'
+    - uses: 'actions/upload-artifact@v4'
       if: ${{ matrix.build_type == 'Release' }}
       with:
         name: macOS Package (${{ matrix.portable }}), ${{ matrix.build_type }}, ${{ matrix.arch }}
@@ -297,12 +243,13 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        container_image: ["ubuntu:16.04", "i386/ubuntu:16.04"]
+        #container_image: ["ubuntu:16.04", "i386/ubuntu:16.04"]
+        container_image: ["ubuntu:22.04", "i386/ubuntu:18.04"]
         build_type: [Debug, Release]
         portable: [Portable, Non-Portable]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
         fetch-depth: 0
@@ -312,9 +259,9 @@ jobs:
       shell: bash
       run: |
         if [ "${{ matrix.portable }}" == "Portable" ]; then
-          OPTIONS="-DUseInternalLibs=ON -DBuildPortableVersion=ON"
+          OPTIONS="-DCMAKE_CXX_STANDARD=14 -DUseInternalLibs=ON -DBuildPortableVersion=ON"
         else
-          OPTIONS="-DUseInternalLibs=OFF -DBuildPortableVersion=OFF"
+          OPTIONS="-DCMAKE_CXX_STANDARD=14 -DUseInternalLibs=OFF -DBuildPortableVersion=OFF"
         fi
         [[ "${{ matrix.container_image}}" == i386* ]] && OPTIONS="$OPTIONS -DSystemProcessor=i386"
         echo "OPTIONS=$OPTIONS" >> $GITHUB_OUTPUT
@@ -328,7 +275,7 @@ jobs:
         podman pull docker.io/${{ matrix.container_image }}
         podman run --name buildenv -v ${{github.workspace}}:/jk2mv -td docker.io/${{ matrix.container_image }} /bin/bash
         podman exec buildenv apt-get update
-        podman exec buildenv apt-get install -y git zip wget libfuse2 build-essential libsdl2-dev libgl1-mesa-dev libopenal-dev libjpeg-dev libpng-dev libminizip-dev cmake rpm
+        podman exec buildenv apt-get install -y git zip wget libfuse2 build-essential libsdl2-dev libgl1-mesa-dev libopenal-dev libjpeg-dev libpng-dev libminizip-dev cmake rpm file
         mkdir -p ${{github.workspace}}/build/actions
 
     - name: Configure CMake
@@ -343,12 +290,12 @@ jobs:
       shell: bash
       run: podman exec -w /jk2mv/build/actions buildenv make package
 
-    #- uses: 'actions/upload-artifact@v3'
+    #- uses: 'actions/upload-artifact@v4'
     #  with:
     #    name: ${{ steps.parameters.outputs.BINARTIFACTNAME }}
     #    path: ${{github.workspace}}/build/actions/out/${{ matrix.build_type }}/*
 
-    - uses: 'actions/upload-artifact@v3'
+    - uses: 'actions/upload-artifact@v4'
       if: ${{ matrix.build_type == 'Release' }}
       with:
         name: ${{ steps.parameters.outputs.PKGARTIFACTNAME }}
