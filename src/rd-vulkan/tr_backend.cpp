@@ -1037,7 +1037,7 @@ static void vk_update_fog_constants(const trRefdef_t* refdef)
 #ifdef USE_JK2
 	for ( i = 0; i < MIN(uniform.num_fogs, 32); ++i )	// jk3 larger too??
 #else
-	for ( i = 0; i < uniform.num_fogs; ++i )
+	for ( i = 0; i < MIN(uniform.num_fogs, 16); ++i )
 #endif
 	{
 		const fog_t *fog = tr.world->fogs + i + 1;
